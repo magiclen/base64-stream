@@ -531,6 +531,12 @@ impl<W: Write> Write for ToBase64Writer<W> {
     }
 }
 
+impl<W: Write> Drop for ToBase64Writer<W> {
+    fn drop(&mut self) {
+        self.flush().unwrap()
+    }
+}
+
 /// Write base64 data and decode them to plain data.
 pub struct FromBase64Writer<W: Write> {
     inner: W,
@@ -621,6 +627,13 @@ impl<W: Write> Write for FromBase64Writer<W> {
         }
     }
 }
+
+impl<W: Write> Drop for FromBase64Writer<W> {
+    fn drop(&mut self) {
+        self.flush().unwrap()
+    }
+}
+
 
 #[cfg(test)]
 mod tests {
