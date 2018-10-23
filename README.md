@@ -2,6 +2,7 @@ Base64 Stream
 ====================
 
 [![Build Status](https://travis-ci.org/magiclen/base64-stream.svg?branch=master)](https://travis-ci.org/magiclen/base64-stream)
+[![Build status](https://ci.appveyor.com/api/projects/status/g0vhvr0whax0xckr/branch/master?svg=true)](https://ci.appveyor.com/project/magiclen/base64-stream/branch/master)
 
 To encode/decode large data with the standard Base64 encoding.
 
