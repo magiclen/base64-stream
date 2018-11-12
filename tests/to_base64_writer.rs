@@ -6,11 +6,17 @@ use std::fs::{self, File};
 
 use base64_stream::ToBase64Writer;
 
+#[cfg(windows)]
+const ENCODE_OUTPUT_PATH: &str = r"tests\data\encode_output.txt";
+
+#[cfg(not(windows))]
+const ENCODE_OUTPUT_PATH: &str = "tests/data/encode_output.txt";
+
 #[test]
 fn encode_write() {
     let test_data = b"Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.".as_ref();
 
-    let base64 = File::create("tests/data/encode_output.txt").unwrap();
+    let base64 = File::create(ENCODE_OUTPUT_PATH).unwrap();
 
     let mut writer = ToBase64Writer::new(base64);
 

@@ -6,11 +6,17 @@ use std::fs::{self, File};
 
 use base64_stream::FromBase64Writer;
 
+#[cfg(windows)]
+const DECODE_OUTPUT_PATH: &str = r"tests\data\decode_output.txt";
+
+#[cfg(not(windows))]
+const DECODE_OUTPUT_PATH: &str = "tests/data/decode_output.txt";
+
 #[test]
 fn decode_write() {
     let base64 = b"SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==".as_ref();
 
-    let test_data = File::create("tests/data/decode_output.txt").unwrap();
+    let test_data = File::create(DECODE_OUTPUT_PATH).unwrap();
 
     let mut writer = FromBase64Writer::new(test_data);
 
