@@ -1,6 +1,6 @@
 [package]
 name = "base64-stream"
-version = "1.0.1"
+version = "1.0.2"
 authors = ["Magic Len <len@magiclen.org>"]
 repository = "https://github.com/magiclen/base64-stream"
 homepage = "https://magiclen.org/base64-stream"
@@ -15,4 +15,4 @@ travis-ci = { repository = "magiclen/base64-stream", branch = "master" }
 appveyor = { repository = "magiclen/base64-stream", branch = "master", service = "github" }
 
 [dependencies]
-base64 = "0.9.3"
+base64 = "0.10"
