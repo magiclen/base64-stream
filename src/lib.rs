@@ -105,6 +105,8 @@ assert_eq!("Hi there, this is a simple sentence used for testing this crate. I h
 */
 
 pub extern crate base64;
+#[macro_use]
+extern crate derivative;
 
 mod to_base64_reader;
 mod from_base64_reader;

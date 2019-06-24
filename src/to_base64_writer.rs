@@ -1,13 +1,17 @@
 use std::io::{self, Write};
 
 /// Write any data and encode them to base64 data.
+#[derive(Derivative)]
+#[derivative(Debug)]
 pub struct ToBase64Writer<W: Write> {
+    #[derivative(Debug = "ignore")]
     inner: W,
     buf: Vec<u8>,
     remaining: Vec<u8>,
 }
 
 impl<W: Write> ToBase64Writer<W> {
+    #[inline]
     pub fn new(inner: W) -> ToBase64Writer<W> {
         ToBase64Writer {
             inner,
