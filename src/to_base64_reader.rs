@@ -3,10 +3,10 @@ use std::io::{self, Read, ErrorKind};
 const READ_SIZE: usize = 4096 * 3;
 
 /// Read any data and encode them to base64 data.
-#[derive(Derivative)]
-#[derivative(Debug)]
+#[derive(Educe)]
+#[educe(Debug)]
 pub struct ToBase64Reader<R: Read> {
-    #[derivative(Debug = "ignore")]
+    #[educe(Debug(ignore))]
     inner: R,
     buf: Vec<u8>,
 }
