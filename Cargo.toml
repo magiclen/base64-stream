@@ -1,6 +1,6 @@
 [package]
 name = "base64-stream"
-version = "1.0.5"
+version = "1.0.6"
 authors = ["Magic Len <len@magiclen.org>"]
 repository = "https://github.com/magiclen/base64-stream"
 homepage = "https://magiclen.org/base64-stream"
@@ -10,9 +10,9 @@ description= "To encode/decode large data with the standard Base64 encoding."
 readme = "README.md"
 license = "MIT"
 
-[badges]
-travis-ci = { repository = "magiclen/base64-stream", branch = "master" }
-appveyor = { repository = "magiclen/base64-stream", branch = "master", service = "github" }
+[badges.travis-ci]
+repository = "magiclen/base64-stream"
+branch = "master"
 
 [dependencies]
 educe = ">=0.0.1"
