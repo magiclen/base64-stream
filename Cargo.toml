@@ -1,6 +1,6 @@
 [package]
 name = "base64-stream"
-version = "1.0.6"
+version = "1.0.7"
 authors = ["Magic Len <len@magiclen.org>"]
 repository = "https://github.com/magiclen/base64-stream"
 homepage = "https://magiclen.org/base64-stream"
@@ -15,5 +15,9 @@ repository = "magiclen/base64-stream"
 branch = "master"
 
 [dependencies]
-educe = ">=0.0.1"
 base64 = "0.10"
+
+[dependencies.educe]
+version = ">=0.4.0"
+features = ["Debug"]
+default-features = false
