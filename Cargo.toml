@@ -7,7 +7,7 @@ repository = "https://github.com/magiclen/base64-stream"
 homepage = "https://magiclen.org/base64-stream"
 keywords = ["base64", "stream", "file", "reader", "writer"]
 categories = ["encoding"]
-description= "To encode/decode large data with the standard Base64 encoding."
+description = "To encode/decode large data with the standard Base64 encoding."
 readme = "README.md"
 license = "MIT"
 
