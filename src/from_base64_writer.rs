@@ -1,4 +1,4 @@
-use std::io::{self, Write, ErrorKind};
+use std::io::{self, ErrorKind, Write};
 
 /// Write base64 data and decode them to plain data.
 #[derive(Educe)]
@@ -41,7 +41,8 @@ impl<W: Write> Write for FromBase64Writer<W> {
 
                 self.buf.clear();
 
-                base64::decode_config_buf(&self.remaining, base64::STANDARD, &mut self.buf).map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
+                base64::decode_config_buf(&self.remaining, base64::STANDARD, &mut self.buf)
+                    .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
 
                 self.inner.write_all(&self.buf)?;
 
@@ -66,7 +67,8 @@ impl<W: Write> Write for FromBase64Writer<W> {
 
             self.buf.clear();
 
-            base64::decode_config_buf(buf, base64::STANDARD, &mut self.buf).map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
+            base64::decode_config_buf(buf, base64::STANDARD, &mut self.buf)
+                .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
 
             self.inner.write_all(&self.buf)?;
 
@@ -80,7 +82,8 @@ impl<W: Write> Write for FromBase64Writer<W> {
         if remaining_len > 0 {
             self.buf.clear();
 
-            base64::decode_config_buf(&self.remaining, base64::STANDARD, &mut self.buf).map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
+            base64::decode_config_buf(&self.remaining, base64::STANDARD, &mut self.buf)
+                .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
 
             self.remaining.clear();
 

@@ -45,7 +45,9 @@ impl<W: Write> Write for ToBase64Writer<W> {
 
                 self.buf.reserve(c);
 
-                unsafe { self.buf.set_len(c); }
+                unsafe {
+                    self.buf.set_len(c);
+                }
 
                 base64::encode_config_slice(&self.remaining, base64::STANDARD, &mut self.buf);
 
@@ -78,7 +80,9 @@ impl<W: Write> Write for ToBase64Writer<W> {
 
             self.buf.reserve(c);
 
-            unsafe { self.buf.set_len(c); }
+            unsafe {
+                self.buf.set_len(c);
+            }
 
             base64::encode_config_slice(buf, base64::STANDARD, &mut self.buf);
 
@@ -98,7 +102,9 @@ impl<W: Write> Write for ToBase64Writer<W> {
 
             self.buf.reserve(c);
 
-            unsafe { self.buf.set_len(c); }
+            unsafe {
+                self.buf.set_len(c);
+            }
 
             base64::encode_config_slice(&self.remaining, base64::STANDARD, &mut self.buf);
 

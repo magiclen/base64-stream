@@ -1,6 +1,6 @@
 extern crate base64_stream;
 
-use std::io::{Read, Cursor};
+use std::io::{Cursor, Read};
 
 use base64_stream::FromBase64Reader;
 

@@ -6,10 +6,6 @@ use std::fs::{self, File};
 
 use base64_stream::FromBase64Writer;
 
-#[cfg(windows)]
-const DECODE_OUTPUT_PATH: &str = r"tests\data\decode_output.txt";
-
-#[cfg(not(windows))]
 const DECODE_OUTPUT_PATH: &str = "tests/data/decode_output.txt";
 
 #[test]

@@ -1,4 +1,4 @@
-use std::io::{self, Read, ErrorKind};
+use std::io::{self, ErrorKind, Read};
 
 const READ_SIZE: usize = 4096 * 3;
 
@@ -26,7 +26,10 @@ impl<R: Read> Read for ToBase64Reader<R> {
         let buf_len = buf.len();
 
         if buf_len < 4 {
-            return Err(io::Error::new(ErrorKind::Other, "the buffer needs to be equal to or more than 4 bytes"));
+            return Err(io::Error::new(
+                ErrorKind::Other,
+                "the buffer needs to be equal to or more than 4 bytes",
+            ));
         }
 
         self.buf.clear();
