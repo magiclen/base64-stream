@@ -51,7 +51,7 @@ impl<W: Write> Write for ToBase64Writer<W> {
 
                 self.remaining.clear();
 
-                self.inner.write(&self.buf)?;
+                self.inner.write_all(&self.buf)?;
 
                 if buf_len != buf_end {
                     self.remaining.extend_from_slice(&buf[buf_end..]);
@@ -59,34 +59,32 @@ impl<W: Write> Write for ToBase64Writer<W> {
 
                 Ok(buf_len)
             }
+        } else if buf_len < 3 {
+            self.remaining.extend_from_slice(&buf);
+            Ok(buf_len)
         } else {
-            if buf_len < 3 {
-                self.remaining.extend_from_slice(&buf);
-                Ok(buf_len)
+            let actual_max_write_size = buf_len / 3 * 3;
+
+            let buf = if actual_max_write_size == buf_len {
+                buf
             } else {
-                let actual_max_write_size = buf_len / 3 * 3;
+                self.remaining.extend_from_slice(&buf[actual_max_write_size..]);
+                &buf[..actual_max_write_size]
+            };
 
-                let buf = if actual_max_write_size == buf_len {
-                    buf
-                } else {
-                    self.remaining.extend_from_slice(&buf[actual_max_write_size..]);
-                    &buf[..actual_max_write_size]
-                };
+            let c = actual_max_write_size / 3 * 4;
 
-                let c = actual_max_write_size / 3 * 4;
+            self.buf.clear();
 
-                self.buf.clear();
+            self.buf.reserve(c);
 
-                self.buf.reserve(c);
+            unsafe { self.buf.set_len(c); }
 
-                unsafe { self.buf.set_len(c); }
+            base64::encode_config_slice(buf, base64::STANDARD, &mut self.buf);
 
-                base64::encode_config_slice(buf, base64::STANDARD, &mut self.buf);
+            self.inner.write_all(&self.buf)?;
 
-                self.inner.write(&self.buf)?;
-
-                Ok(buf_len)
-            }
+            Ok(buf_len)
         }
     }
 
@@ -106,7 +104,7 @@ impl<W: Write> Write for ToBase64Writer<W> {
 
             self.remaining.clear();
 
-            self.inner.write(&self.buf)?;
+            self.inner.write_all(&self.buf)?;
 
             self.inner.flush()
         } else {

@@ -43,7 +43,7 @@ impl<W: Write> Write for FromBase64Writer<W> {
 
                 base64::decode_config_buf(&self.remaining, base64::STANDARD, &mut self.buf).map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
 
-                self.inner.write(&self.buf)?;
+                self.inner.write_all(&self.buf)?;
 
                 if buf_len != buf_end {
                     self.remaining.extend_from_slice(&buf[buf_end..]);
@@ -51,28 +51,26 @@ impl<W: Write> Write for FromBase64Writer<W> {
 
                 Ok(buf_len)
             }
+        } else if buf_len < 4 {
+            self.remaining.extend_from_slice(&buf);
+            Ok(buf_len)
         } else {
-            if buf_len < 4 {
-                self.remaining.extend_from_slice(&buf);
-                Ok(buf_len)
+            let actual_max_write_size = buf_len / 4 * 4;
+
+            let buf = if actual_max_write_size == buf_len {
+                buf
             } else {
-                let actual_max_write_size = buf_len / 4 * 4;
+                self.remaining.extend_from_slice(&buf[actual_max_write_size..]);
+                &buf[..actual_max_write_size]
+            };
 
-                let buf = if actual_max_write_size == buf_len {
-                    buf
-                } else {
-                    self.remaining.extend_from_slice(&buf[actual_max_write_size..]);
-                    &buf[..actual_max_write_size]
-                };
+            self.buf.clear();
 
-                self.buf.clear();
+            base64::decode_config_buf(buf, base64::STANDARD, &mut self.buf).map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
 
-                base64::decode_config_buf(buf, base64::STANDARD, &mut self.buf).map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
+            self.inner.write_all(&self.buf)?;
 
-                self.inner.write(&self.buf)?;
-
-                Ok(buf_len)
-            }
+            Ok(buf_len)
         }
     }
 
@@ -86,7 +84,7 @@ impl<W: Write> Write for FromBase64Writer<W> {
 
             self.remaining.clear();
 
-            self.inner.write(&self.buf)?;
+            self.inner.write_all(&self.buf)?;
 
             self.inner.flush()
         } else {
