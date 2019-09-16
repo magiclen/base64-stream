@@ -16,7 +16,7 @@ fn decode_write() {
 
     let mut writer = FromBase64Writer::new(test_data);
 
-    writer.write(base64).unwrap();
+    writer.write_all(base64).unwrap();
 
     writer.flush().unwrap(); // the flush method is only used when the full base64 data has been written
 

@@ -16,7 +16,7 @@ fn encode_write() {
 
     let mut writer = ToBase64Writer::new(base64);
 
-    writer.write(test_data).unwrap();
+    writer.write_all(test_data).unwrap();
 
     writer.flush().unwrap(); // the flush method is only used when the full base64 data has been written
 
