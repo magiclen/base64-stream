@@ -16,7 +16,7 @@ repository = "magiclen/base64-stream"
 branch = "master"
 
 [dependencies]
-base64 = "0.11"
+base64 = "0.12"
 
 [dependencies.educe]
 version = ">=0.4.0"
