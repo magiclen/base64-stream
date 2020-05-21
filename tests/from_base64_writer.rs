@@ -1,18 +1,21 @@
 extern crate base64_stream;
 
-use std::io::Write;
-
 use std::fs::{self, File};
+use std::io::Write;
+use std::path::Path;
 
 use base64_stream::FromBase64Writer;
 
-const DECODE_OUTPUT_PATH: &str = "tests/data/decode_output.txt";
+const DATA_FOLDER: &str = "data";
+const DECODE_OUTPUT: &str = "decode_output.txt";
 
 #[test]
 fn decode_write() {
     let base64 = b"SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==".as_ref();
 
-    let test_data = File::create(DECODE_OUTPUT_PATH).unwrap();
+    let file_path = Path::new("tests").join(DATA_FOLDER).join(DECODE_OUTPUT);
+
+    let test_data = File::create(file_path.as_path()).unwrap();
 
     let mut writer = FromBase64Writer::new(test_data);
 
@@ -20,5 +23,5 @@ fn decode_write() {
 
     writer.flush().unwrap(); // the flush method is only used when the full base64 data has been written
 
-    assert_eq!("Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.", fs::read_to_string("tests/data/decode_output.txt").unwrap());
+    assert_eq!("Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.", fs::read_to_string(file_path).unwrap());
 }
