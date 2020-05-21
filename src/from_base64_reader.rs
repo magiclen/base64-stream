@@ -1,6 +1,8 @@
+use std::intrinsics::{copy, copy_nonoverlapping};
 use std::io::{self, ErrorKind, Read};
 
-const READ_SIZE: usize = 4096 * 3;
+use crate::base64::DecodeError;
+use crate::{fmt, BUFFER_SIZE};
 
 /// Read base64 data and decode them to plain data.
 #[derive(Educe)]
@@ -8,162 +10,204 @@ const READ_SIZE: usize = 4096 * 3;
 pub struct FromBase64Reader<R: Read> {
     #[educe(Debug(ignore))]
     inner: R,
-    buf: Vec<u8>,
+    #[educe(Debug(method = "fmt"))]
+    buf: [u8; BUFFER_SIZE],
+    buf_length: usize,
+    buf_offset: usize,
+    temp: [u8; 2],
+    temp_length: usize,
 }
 
 impl<R: Read> FromBase64Reader<R> {
     #[inline]
-    pub fn new(inner: R) -> FromBase64Reader<R> {
+    pub fn new(reader: R) -> FromBase64Reader<R> {
         FromBase64Reader {
-            inner,
-            buf: Vec::new(),
+            inner: reader,
+            buf: [0; BUFFER_SIZE],
+            buf_length: 0,
+            buf_offset: 0,
+            temp: [0; 2],
+            temp_length: 0,
+        }
+    }
+}
+
+impl<R: Read> FromBase64Reader<R> {
+    fn buf_left_shift(&mut self, distance: usize) {
+        debug_assert!(self.buf_length >= distance);
+
+        self.buf_offset += distance;
+
+        if BUFFER_SIZE - self.buf_offset < 32 {
+            unsafe {
+                copy(
+                    self.buf.as_ptr().add(self.buf_offset),
+                    self.buf.as_mut_ptr(),
+                    self.buf_length,
+                );
+            }
+
+            self.buf_offset = 0;
+        }
+
+        self.buf_length -= distance;
+    }
+
+    #[inline]
+    fn drain_temp<'a>(&mut self, buf: &'a mut [u8]) -> &'a mut [u8] {
+        debug_assert!(self.temp_length > 0);
+        debug_assert!(!buf.is_empty());
+
+        let drain_length = buf.len().min(self.temp_length);
+
+        unsafe {
+            copy_nonoverlapping(self.temp.as_ptr(), buf.as_mut_ptr(), drain_length);
+        }
+
+        self.temp_length -= drain_length;
+
+        unsafe {
+            copy(
+                self.temp.as_ptr().add(self.temp_length),
+                self.temp.as_mut_ptr(),
+                self.temp_length,
+            );
+        }
+
+        &mut buf[drain_length..]
+    }
+
+    #[inline]
+    fn drain_block<'a>(&mut self, mut buf: &'a mut [u8]) -> Result<&'a mut [u8], DecodeError> {
+        debug_assert!(self.buf_length > 0);
+        debug_assert!(self.temp_length == 0);
+        debug_assert!(!buf.is_empty());
+
+        let drain_length = self.buf_length.min(4);
+
+        let mut b = [0; 3];
+
+        let decode_length = base64::decode_config_slice(
+            &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
+            base64::STANDARD,
+            &mut b,
+        )?;
+
+        self.buf_left_shift(drain_length);
+
+        let buf_length = buf.len();
+
+        if buf_length >= decode_length {
+            unsafe {
+                copy_nonoverlapping(b.as_ptr(), buf.as_mut_ptr(), decode_length);
+            }
+
+            buf = &mut buf[decode_length..];
+        } else {
+            unsafe {
+                copy_nonoverlapping(b.as_ptr(), buf.as_mut_ptr(), buf_length);
+            }
+
+            buf = &mut buf[buf_length..];
+
+            self.temp_length = decode_length - buf_length;
+
+            unsafe {
+                copy_nonoverlapping(
+                    b.as_ptr().add(buf_length),
+                    self.temp.as_mut_ptr(),
+                    self.temp_length,
+                );
+            }
+        }
+
+        Ok(buf)
+    }
+
+    fn drain<'a>(&mut self, mut buf: &'a mut [u8]) -> Result<&'a mut [u8], DecodeError> {
+        if buf.is_empty() {
+            return Ok(buf);
+        }
+
+        if self.temp_length > 0 {
+            buf = self.drain_temp(buf);
+        }
+
+        debug_assert!(self.buf_length >= 4);
+
+        let buf_length = buf.len();
+
+        if buf_length >= 3 {
+            debug_assert!(self.temp_length == 0);
+
+            let actual_max_read_size = (buf_length / 3) << 2; // (buf_length / 3) * 4
+            let max_available_self_buf_length = self.buf_length & !0b11;
+
+            let drain_length = max_available_self_buf_length.min(actual_max_read_size);
+
+            let decode_length = base64::decode_config_slice(
+                &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
+                base64::STANDARD,
+                buf,
+            )?;
+
+            buf = &mut buf[decode_length..];
+
+            self.buf_left_shift(drain_length);
+        }
+
+        if !buf.is_empty() && self.buf_length >= 4 {
+            self.drain_block(buf)
+        } else {
+            Ok(buf)
+        }
+    }
+
+    #[inline]
+    fn drain_end<'a>(&mut self, mut buf: &'a mut [u8]) -> Result<&'a mut [u8], DecodeError> {
+        if buf.is_empty() {
+            return Ok(buf);
+        }
+
+        if self.temp_length > 0 {
+            buf = self.drain_temp(buf);
+        }
+
+        if !buf.is_empty() && self.buf_length > 0 {
+            self.drain_block(buf)
+        } else {
+            Ok(buf)
         }
     }
 }
 
 impl<R: Read> Read for FromBase64Reader<R> {
-    fn read(&mut self, buf: &mut [u8]) -> Result<usize, io::Error> {
-        let buf_len = buf.len();
+    fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, io::Error> {
+        let original_buf_length = buf.len();
 
-        if buf_len < 3 {
-            return Err(io::Error::new(
-                ErrorKind::Other,
-                "the buffer needs to be equal to or more than 3 bytes",
-            ));
+        while self.buf_length < 4 {
+            match self.inner.read(&mut self.buf[(self.buf_offset + self.buf_length)..]) {
+                Ok(0) => {
+                    buf =
+                        self.drain_end(buf).map_err(|err| io::Error::new(ErrorKind::Other, err))?;
+
+                    return Ok(original_buf_length - buf.len());
+                }
+                Ok(c) => self.buf_length += c,
+                Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
+                Err(e) => return Err(e),
+            }
         }
 
-        self.buf.clear();
+        buf = self.drain(buf).map_err(|err| io::Error::new(ErrorKind::Other, err))?;
 
-        let actual_max_read_size = buf_len / 3 * 4;
-
-        self.buf.reserve(actual_max_read_size);
-
-        unsafe { self.buf.set_len(actual_max_read_size) };
-
-        let c = {
-            let mut buf = &mut self.buf[..actual_max_read_size];
-
-            let mut c = 0;
-
-            loop {
-                match self.inner.read(buf) {
-                    Ok(0) => break,
-                    Ok(n) => {
-                        let tmp = buf;
-                        buf = &mut tmp[n..];
-                        c += n;
-                    }
-                    Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
-                    Err(e) => return Err(e),
-                }
-            }
-
-            c
-        };
-
-        Ok(base64::decode_config_slice(&self.buf[..c], base64::STANDARD, buf)
-            .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?)
+        Ok(original_buf_length - buf.len())
     }
+}
 
-    fn read_to_end(&mut self, buf: &mut Vec<u8>) -> Result<usize, io::Error> {
-        self.buf.clear();
-
-        let actual_max_read_size = READ_SIZE;
-
-        self.buf.reserve(actual_max_read_size);
-
-        unsafe { self.buf.set_len(actual_max_read_size) };
-
-        let mut sum = 0;
-
-        loop {
-            let c = {
-                let mut buf = &mut self.buf[..actual_max_read_size];
-
-                let mut c = 0;
-
-                loop {
-                    match self.inner.read(buf) {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            let tmp = buf;
-                            buf = &mut tmp[n..];
-                            c += n;
-                        }
-                        Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
-                        Err(e) => return Err(e),
-                    }
-                }
-
-                c
-            };
-
-            if c == 0 {
-                break;
-            }
-
-            let old_len = buf.len();
-
-            base64::decode_config_buf(&self.buf[..c], base64::STANDARD, buf)
-                .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
-
-            sum += buf.len() - old_len;
-        }
-
-        Ok(sum)
-    }
-
-    fn read_to_string(&mut self, buf: &mut String) -> Result<usize, io::Error> {
-        self.buf.clear();
-
-        let actual_max_read_size = READ_SIZE;
-
-        self.buf.reserve(actual_max_read_size);
-
-        unsafe { self.buf.set_len(actual_max_read_size) };
-
-        let mut sum = 0;
-
-        loop {
-            let c = {
-                let mut buf = &mut self.buf[..actual_max_read_size];
-
-                let mut c = 0;
-
-                loop {
-                    match self.inner.read(buf) {
-                        Ok(0) => break,
-                        Ok(n) => {
-                            let tmp = buf;
-                            buf = &mut tmp[n..];
-                            c += n;
-                        }
-                        Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
-                        Err(e) => return Err(e),
-                    }
-                }
-
-                c
-            };
-
-            if c == 0 {
-                break;
-            }
-
-            let mut temp = Vec::new();
-
-            base64::decode_config_buf(&self.buf[..c], base64::STANDARD, &mut temp)
-                .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
-
-            let temp = String::from_utf8(temp).map_err(|_| {
-                io::Error::new(ErrorKind::InvalidData, "stream did not contain valid UTF-8")
-            })?;
-
-            sum += temp.len();
-
-            buf.push_str(&temp);
-        }
-
-        Ok(sum)
+impl<R: Read> From<R> for FromBase64Reader<R> {
+    #[inline]
+    fn from(reader: R) -> Self {
+        FromBase64Reader::new(reader)
     }
 }

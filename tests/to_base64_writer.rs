@@ -21,9 +21,7 @@ fn encode_write() {
 
     writer.write_all(test_data).unwrap();
 
-    writer.flush().unwrap(); // the flush method is only used when the full base64 data has been written
-
-    drop(writer);
+    writer.flush().unwrap(); // the flush method is only used when the full plain data has been written
 
     assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==", fs::read_to_string(file_path).unwrap());
 }

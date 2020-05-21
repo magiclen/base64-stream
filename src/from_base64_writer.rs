@@ -1,4 +1,11 @@
+use std::intrinsics::copy_nonoverlapping;
 use std::io::{self, ErrorKind, Write};
+
+use crate::{fmt, BUFFER_SIZE};
+
+// Do not change these
+const TEMP_SIZE: usize = BUFFER_SIZE;
+const MAX_DECODE_SIZE: usize = (TEMP_SIZE / 3) << 2; // (TEMP_SIZE / 3) * 4
 
 /// Write base64 data and decode them to plain data.
 #[derive(Educe)]
@@ -6,98 +13,117 @@ use std::io::{self, ErrorKind, Write};
 pub struct FromBase64Writer<W: Write> {
     #[educe(Debug(ignore))]
     inner: W,
-    buf: Vec<u8>,
-    remaining: Vec<u8>,
+    buf: [u8; 4],
+    buf_length: usize,
+    #[educe(Debug(method = "fmt"))]
+    temp: [u8; TEMP_SIZE],
 }
 
 impl<W: Write> FromBase64Writer<W> {
     #[inline]
-    pub fn new(inner: W) -> FromBase64Writer<W> {
+    pub fn new(writer: W) -> FromBase64Writer<W> {
         FromBase64Writer {
-            inner,
-            buf: Vec::new(),
-            remaining: Vec::new(),
+            inner: writer,
+            buf: [0; 4],
+            buf_length: 0,
+            temp: [0; TEMP_SIZE],
         }
     }
 }
 
-impl<W: Write> Write for FromBase64Writer<W> {
-    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
-        let remaining_len = self.remaining.len();
-        let buf_len = buf.len();
+impl<R: Write> FromBase64Writer<R> {
+    fn drain_block(&mut self) -> Result<(), io::Error> {
+        debug_assert!(self.buf_length > 0);
 
-        if remaining_len > 0 {
-            let new_buf_len = remaining_len + buf_len;
+        let decode_length = base64::decode_config_slice(
+            &self.buf[..self.buf_length],
+            base64::STANDARD,
+            &mut self.temp,
+        )
+        .map_err(|err| io::Error::new(ErrorKind::Other, err))?;
 
-            if new_buf_len < 4 {
-                self.remaining.extend_from_slice(&buf);
-                Ok(buf_len)
-            } else {
-                let actual_max_write_size = new_buf_len / 3 * 3;
+        self.inner.write_all(&self.temp[..decode_length])?;
 
-                let buf_end = actual_max_write_size - remaining_len;
+        self.buf_length = 0;
 
-                self.remaining.extend_from_slice(&buf[..buf_end]);
+        Ok(())
+    }
+}
 
-                self.buf.clear();
+impl<R: Write> Write for FromBase64Writer<R> {
+    fn write(&mut self, mut buf: &[u8]) -> Result<usize, io::Error> {
+        let original_buf_length = buf.len();
 
-                base64::decode_config_buf(&self.remaining, base64::STANDARD, &mut self.buf)
-                    .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
+        if self.buf_length == 0 {
+            while buf.len() >= 4 {
+                let max_available_buf_length = (buf.len() & !0b11).min(MAX_DECODE_SIZE);
 
-                self.inner.write_all(&self.buf)?;
+                let decode_length = base64::decode_config_slice(
+                    &buf[..max_available_buf_length],
+                    base64::STANDARD,
+                    &mut self.temp,
+                )
+                .map_err(|err| io::Error::new(ErrorKind::Other, err))?;
 
-                if buf_len != buf_end {
-                    self.remaining.extend_from_slice(&buf[buf_end..]);
+                buf = &buf[max_available_buf_length..];
+
+                self.inner.write_all(&self.temp[..decode_length])?;
+            }
+
+            let buf_length = buf.len();
+
+            if buf_length > 0 {
+                unsafe {
+                    copy_nonoverlapping(buf.as_ptr(), self.buf.as_mut_ptr(), buf_length);
                 }
 
-                Ok(buf_len)
+                self.buf_length = buf_length;
             }
-        } else if buf_len < 4 {
-            self.remaining.extend_from_slice(&buf);
-            Ok(buf_len)
         } else {
-            let actual_max_write_size = buf_len / 4 * 4;
+            debug_assert!(self.buf_length < 4);
 
-            let buf = if actual_max_write_size == buf_len {
-                buf
-            } else {
-                self.remaining.extend_from_slice(&buf[actual_max_write_size..]);
-                &buf[..actual_max_write_size]
-            };
+            let r = 4 - self.buf_length;
 
-            self.buf.clear();
+            let buf_length = buf.len();
 
-            base64::decode_config_buf(buf, base64::STANDARD, &mut self.buf)
-                .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
+            let drain_length = r.min(buf_length);
 
-            self.inner.write_all(&self.buf)?;
+            unsafe {
+                copy_nonoverlapping(
+                    buf.as_ptr(),
+                    self.buf.as_mut_ptr().add(self.buf_length),
+                    drain_length,
+                );
+            }
 
-            Ok(buf_len)
+            buf = &buf[drain_length..];
+
+            self.buf_length += drain_length;
+
+            if self.buf_length == 4 {
+                self.drain_block()?;
+
+                if buf_length > r {
+                    self.write_all(buf)?;
+                }
+            }
         }
+
+        Ok(original_buf_length)
     }
 
     fn flush(&mut self) -> Result<(), io::Error> {
-        let remaining_len = self.remaining.len();
-
-        if remaining_len > 0 {
-            self.buf.clear();
-
-            base64::decode_config_buf(&self.remaining, base64::STANDARD, &mut self.buf)
-                .map_err(|err| io::Error::new(ErrorKind::Other, err.to_string()))?;
-
-            self.remaining.clear();
-
-            self.inner.write_all(&self.buf)?;
-
-            self.inner.flush()
-        } else {
-            self.inner.flush()
+        if self.buf_length > 0 {
+            self.drain_block()?;
         }
+
+        Ok(())
     }
 }
 
-impl<W: Write> Drop for FromBase64Writer<W> {
-    fn drop(&mut self) {
-        self.flush().unwrap()
+impl<R: Write> From<R> for FromBase64Writer<R> {
+    #[inline]
+    fn from(reader: R) -> Self {
+        FromBase64Writer::new(reader)
     }
 }

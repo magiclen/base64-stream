@@ -5,16 +5,16 @@ use std::io::{Cursor, Read};
 use base64_stream::ToBase64Reader;
 
 #[test]
-fn encode_read() {
+fn encode_exact() {
     let test_data = b"Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.".to_vec();
 
     let mut reader = ToBase64Reader::new(Cursor::new(test_data));
 
-    let mut base64 = [0u8; 4096];
+    let mut base64 = [0u8; 128];
 
-    let c = reader.read(&mut base64).unwrap();
+    reader.read_exact(&mut base64).unwrap();
 
-    assert_eq!(b"SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==".to_vec(), base64[..c].to_vec());
+    assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==".as_bytes(), base64.as_ref());
 }
 
 #[test]
