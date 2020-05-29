@@ -1,22 +1,18 @@
 use std::intrinsics::copy_nonoverlapping;
 use std::io::{self, Write};
 
-use crate::{fmt, BUFFER_SIZE};
-
-// Do not change these
-const TEMP_SIZE: usize = BUFFER_SIZE;
-const MAX_ENCODE_SIZE: usize = (TEMP_SIZE >> 2) * 3; // (TEMP_SIZE / 4) * 3
+use crate::generic_array::typenum::U4096;
+use crate::generic_array::{ArrayLength, GenericArray};
 
 /// Write base64 data and encode them to plain data.
 #[derive(Educe)]
 #[educe(Debug)]
-pub struct ToBase64Writer<W: Write> {
+pub struct ToBase64Writer<W: Write, N: ArrayLength<u8> = U4096> {
     #[educe(Debug(ignore))]
     inner: W,
     buf: [u8; 3],
     buf_length: usize,
-    #[educe(Debug(method = "fmt"))]
-    temp: [u8; TEMP_SIZE],
+    temp: GenericArray<u8, N>,
 }
 
 impl<W: Write> ToBase64Writer<W> {
@@ -26,12 +22,28 @@ impl<W: Write> ToBase64Writer<W> {
             inner: writer,
             buf: [0; 3],
             buf_length: 0,
-            temp: [0; TEMP_SIZE],
+            temp: GenericArray::default(),
         }
     }
 }
 
-impl<R: Write> ToBase64Writer<R> {
+impl<W: Write, N: ArrayLength<u8>> ToBase64Writer<W, N> {
+    #[inline]
+    pub fn new2(writer: W) -> Result<ToBase64Writer<W, N>, &'static str> {
+        if N::USIZE >= 4 {
+            Ok(ToBase64Writer {
+                inner: writer,
+                buf: [0; 3],
+                buf_length: 0,
+                temp: GenericArray::default(),
+            })
+        } else {
+            Err("The buffer size must be bigger than or equal to 4.")
+        }
+    }
+}
+
+impl<W: Write, N: ArrayLength<u8>> ToBase64Writer<W, N> {
     fn drain_block(&mut self) -> Result<(), io::Error> {
         debug_assert!(self.buf_length > 0);
 
@@ -49,13 +61,14 @@ impl<R: Write> ToBase64Writer<R> {
     }
 }
 
-impl<R: Write> Write for ToBase64Writer<R> {
+impl<W: Write, N: ArrayLength<u8>> Write for ToBase64Writer<W, N> {
     fn write(&mut self, mut buf: &[u8]) -> Result<usize, io::Error> {
         let original_buf_length = buf.len();
 
         if self.buf_length == 0 {
             while buf.len() >= 3 {
-                let max_available_buf_length = (buf.len() - (buf.len() % 3)).min(MAX_ENCODE_SIZE);
+                let max_available_buf_length =
+                    (buf.len() - (buf.len() % 3)).min((N::USIZE >> 2) * 3); // (N::USIZE / 4) * 3
 
                 let encode_length = base64::encode_config_slice(
                     &buf[..max_available_buf_length],
@@ -119,9 +132,9 @@ impl<R: Write> Write for ToBase64Writer<R> {
     }
 }
 
-impl<R: Write> From<R> for ToBase64Writer<R> {
+impl<W: Write> From<W> for ToBase64Writer<W> {
     #[inline]
-    fn from(reader: R) -> Self {
+    fn from(reader: W) -> Self {
         ToBase64Writer::new(reader)
     }
 }

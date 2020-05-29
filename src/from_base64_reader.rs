@@ -1,17 +1,18 @@
 use std::intrinsics::{copy, copy_nonoverlapping};
 use std::io::{self, ErrorKind, Read};
 
+use crate::generic_array::typenum::U4096;
+use crate::generic_array::{ArrayLength, GenericArray};
+
 use crate::base64::DecodeError;
-use crate::{fmt, BUFFER_SIZE};
 
 /// Read base64 data and decode them to plain data.
 #[derive(Educe)]
 #[educe(Debug)]
-pub struct FromBase64Reader<R: Read> {
+pub struct FromBase64Reader<R: Read, N: ArrayLength<u8> = U4096> {
     #[educe(Debug(ignore))]
     inner: R,
-    #[educe(Debug(method = "fmt"))]
-    buf: [u8; BUFFER_SIZE],
+    buf: GenericArray<u8, N>,
     buf_length: usize,
     buf_offset: usize,
     temp: [u8; 2],
@@ -23,7 +24,7 @@ impl<R: Read> FromBase64Reader<R> {
     pub fn new(reader: R) -> FromBase64Reader<R> {
         FromBase64Reader {
             inner: reader,
-            buf: [0; BUFFER_SIZE],
+            buf: GenericArray::default(),
             buf_length: 0,
             buf_offset: 0,
             temp: [0; 2],
@@ -32,13 +33,31 @@ impl<R: Read> FromBase64Reader<R> {
     }
 }
 
-impl<R: Read> FromBase64Reader<R> {
+impl<R: Read, N: ArrayLength<u8>> FromBase64Reader<R, N> {
+    #[inline]
+    pub fn new2(reader: R) -> Result<FromBase64Reader<R, N>, &'static str> {
+        if N::USIZE >= 4 {
+            Ok(FromBase64Reader {
+                inner: reader,
+                buf: GenericArray::default(),
+                buf_length: 0,
+                buf_offset: 0,
+                temp: [0; 2],
+                temp_length: 0,
+            })
+        } else {
+            Err("The buffer size must be bigger than or equal to 4.")
+        }
+    }
+}
+
+impl<R: Read, N: ArrayLength<u8>> FromBase64Reader<R, N> {
     fn buf_left_shift(&mut self, distance: usize) {
         debug_assert!(self.buf_length >= distance);
 
         self.buf_offset += distance;
 
-        if BUFFER_SIZE - self.buf_offset < 32 {
+        if N::USIZE - self.buf_offset <= 32 {
             unsafe {
                 copy(
                     self.buf.as_ptr().add(self.buf_offset),
@@ -181,7 +200,7 @@ impl<R: Read> FromBase64Reader<R> {
     }
 }
 
-impl<R: Read> Read for FromBase64Reader<R> {
+impl<R: Read, N: ArrayLength<u8>> Read for FromBase64Reader<R, N> {
     fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, io::Error> {
         let original_buf_length = buf.len();
 

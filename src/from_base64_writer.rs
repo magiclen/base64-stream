@@ -1,22 +1,18 @@
 use std::intrinsics::copy_nonoverlapping;
 use std::io::{self, ErrorKind, Write};
 
-use crate::{fmt, BUFFER_SIZE};
-
-// Do not change these
-const TEMP_SIZE: usize = BUFFER_SIZE;
-const MAX_DECODE_SIZE: usize = (TEMP_SIZE / 3) << 2; // (TEMP_SIZE / 3) * 4
+use crate::generic_array::typenum::U4096;
+use crate::generic_array::{ArrayLength, GenericArray};
 
 /// Write base64 data and decode them to plain data.
 #[derive(Educe)]
 #[educe(Debug)]
-pub struct FromBase64Writer<W: Write> {
+pub struct FromBase64Writer<W: Write, N: ArrayLength<u8> = U4096> {
     #[educe(Debug(ignore))]
     inner: W,
     buf: [u8; 4],
     buf_length: usize,
-    #[educe(Debug(method = "fmt"))]
-    temp: [u8; TEMP_SIZE],
+    temp: GenericArray<u8, N>,
 }
 
 impl<W: Write> FromBase64Writer<W> {
@@ -26,12 +22,28 @@ impl<W: Write> FromBase64Writer<W> {
             inner: writer,
             buf: [0; 4],
             buf_length: 0,
-            temp: [0; TEMP_SIZE],
+            temp: GenericArray::default(),
         }
     }
 }
 
-impl<R: Write> FromBase64Writer<R> {
+impl<W: Write, N: ArrayLength<u8>> FromBase64Writer<W, N> {
+    #[inline]
+    pub fn new2(writer: W) -> Result<FromBase64Writer<W, N>, &'static str> {
+        if N::USIZE >= 4 {
+            Ok(FromBase64Writer {
+                inner: writer,
+                buf: [0; 4],
+                buf_length: 0,
+                temp: GenericArray::default(),
+            })
+        } else {
+            Err("The buffer size must be bigger than or equal to 4.")
+        }
+    }
+}
+
+impl<W: Write, N: ArrayLength<u8>> FromBase64Writer<W, N> {
     fn drain_block(&mut self) -> Result<(), io::Error> {
         debug_assert!(self.buf_length > 0);
 
@@ -50,13 +62,13 @@ impl<R: Write> FromBase64Writer<R> {
     }
 }
 
-impl<R: Write> Write for FromBase64Writer<R> {
+impl<W: Write, N: ArrayLength<u8>> Write for FromBase64Writer<W, N> {
     fn write(&mut self, mut buf: &[u8]) -> Result<usize, io::Error> {
         let original_buf_length = buf.len();
 
         if self.buf_length == 0 {
             while buf.len() >= 4 {
-                let max_available_buf_length = (buf.len() & !0b11).min(MAX_DECODE_SIZE);
+                let max_available_buf_length = (buf.len() & !0b11).min((N::USIZE / 3) << 2); // (N::USIZE / 3) * 4
 
                 let decode_length = base64::decode_config_slice(
                     &buf[..max_available_buf_length],
@@ -112,6 +124,7 @@ impl<R: Write> Write for FromBase64Writer<R> {
         Ok(original_buf_length)
     }
 
+    #[inline]
     fn flush(&mut self) -> Result<(), io::Error> {
         if self.buf_length > 0 {
             self.drain_block()?;
@@ -121,9 +134,9 @@ impl<R: Write> Write for FromBase64Writer<R> {
     }
 }
 
-impl<R: Write> From<R> for FromBase64Writer<R> {
+impl<W: Write> From<W> for FromBase64Writer<W> {
     #[inline]
-    fn from(reader: R) -> Self {
+    fn from(reader: W) -> Self {
         FromBase64Writer::new(reader)
     }
 }

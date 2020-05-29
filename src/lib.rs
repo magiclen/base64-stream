@@ -108,9 +108,35 @@ writer.flush().unwrap(); // the flush method is only used when the full base64 d
 
 assert_eq!("Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.", fs::read_to_string(file_path).unwrap());
 ```
+
+## Change the Buffer Size
+
+The default buffer size is 4096 bytes. If you want to change that, you can use the `new2` associated function and define a length explicitly to create an instance of the above structs.
+
+For example, to change the buffer size to 256 bytes,
+
+```rust
+extern crate base64_stream;
+
+use std::io::{Cursor, Read};
+
+use base64_stream::ToBase64Reader;
+use base64_stream::generic_array::typenum::U256;
+
+let test_data = b"Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.".to_vec();
+
+let mut reader: ToBase64Reader<_, U256> = ToBase64Reader::new2(Cursor::new(test_data)).unwrap();
+
+let mut base64 = String::new();
+
+reader.read_to_string(&mut base64).unwrap();
+
+assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==", base64);
+```
 */
 
 pub extern crate base64;
+pub extern crate generic_array;
 
 #[macro_use]
 extern crate educe;
@@ -124,18 +150,3 @@ pub use from_base64_reader::*;
 pub use from_base64_writer::*;
 pub use to_base64_reader::*;
 pub use to_base64_writer::*;
-
-use std::fmt::{self, Formatter};
-
-const BUFFER_SIZE: usize = 4096; // must be bigger than or equal to 4
-
-#[inline]
-fn fmt(s: &[u8], f: &mut Formatter) -> fmt::Result {
-    let mut list = f.debug_list();
-
-    for n in s.iter() {
-        list.entry(n);
-    }
-
-    Ok(())
-}
