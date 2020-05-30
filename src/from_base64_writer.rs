@@ -1,13 +1,16 @@
 use std::intrinsics::copy_nonoverlapping;
 use std::io::{self, ErrorKind, Write};
 
-use crate::generic_array::typenum::U4096;
+use crate::generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
 use crate::generic_array::{ArrayLength, GenericArray};
 
 /// Write base64 data and decode them to plain data.
 #[derive(Educe)]
 #[educe(Debug)]
-pub struct FromBase64Writer<W: Write, N: ArrayLength<u8> = U4096> {
+pub struct FromBase64Writer<
+    W: Write,
+    N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True> = U4096,
+> {
     #[educe(Debug(ignore))]
     inner: W,
     buf: [u8; 4],
@@ -27,23 +30,19 @@ impl<W: Write> FromBase64Writer<W> {
     }
 }
 
-impl<W: Write, N: ArrayLength<u8>> FromBase64Writer<W, N> {
+impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase64Writer<W, N> {
     #[inline]
-    pub fn new2(writer: W) -> Result<FromBase64Writer<W, N>, &'static str> {
-        if N::USIZE >= 4 {
-            Ok(FromBase64Writer {
-                inner: writer,
-                buf: [0; 4],
-                buf_length: 0,
-                temp: GenericArray::default(),
-            })
-        } else {
-            Err("The buffer size must be bigger than or equal to 4.")
+    pub fn new2(writer: W) -> FromBase64Writer<W, N> {
+        FromBase64Writer {
+            inner: writer,
+            buf: [0; 4],
+            buf_length: 0,
+            temp: GenericArray::default(),
         }
     }
 }
 
-impl<W: Write, N: ArrayLength<u8>> FromBase64Writer<W, N> {
+impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase64Writer<W, N> {
     fn drain_block(&mut self) -> Result<(), io::Error> {
         debug_assert!(self.buf_length > 0);
 
@@ -62,7 +61,9 @@ impl<W: Write, N: ArrayLength<u8>> FromBase64Writer<W, N> {
     }
 }
 
-impl<W: Write, N: ArrayLength<u8>> Write for FromBase64Writer<W, N> {
+impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> Write
+    for FromBase64Writer<W, N>
+{
     fn write(&mut self, mut buf: &[u8]) -> Result<usize, io::Error> {
         let original_buf_length = buf.len();
 

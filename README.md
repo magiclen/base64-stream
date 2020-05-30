@@ -127,7 +127,7 @@ use base64_stream::generic_array::typenum::U256;
 
 let test_data = b"Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.".to_vec();
 
-let mut reader: ToBase64Reader<_, U256> = ToBase64Reader::new2(Cursor::new(test_data)).unwrap();
+let mut reader: ToBase64Reader<_, U256> = ToBase64Reader::new2(Cursor::new(test_data));
 
 let mut base64 = String::new();
 
