@@ -56,7 +56,7 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
 
         self.buf_offset += distance;
 
-        if N::USIZE - self.buf_offset <= 32 {
+        if self.buf_offset >= N::USIZE - 4 {
             unsafe {
                 copy(
                     self.buf.as_ptr().add(self.buf_offset),

@@ -7,7 +7,7 @@ use crate::generic_array::{ArrayLength, GenericArray};
 /// Read any data and encode them to base64 data.
 #[derive(Educe)]
 #[educe(Debug)]
-pub struct ToBase64Reader<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True> = U4096>
+pub struct ToBase64Reader<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output=True> = U4096>
 {
     #[educe(Debug(ignore))]
     inner: R,
@@ -32,7 +32,7 @@ impl<R: Read> ToBase64Reader<R> {
     }
 }
 
-impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64Reader<R, N> {
+impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output=True>> ToBase64Reader<R, N> {
     #[inline]
     pub fn new2(reader: R) -> ToBase64Reader<R, N> {
         ToBase64Reader {
@@ -46,13 +46,13 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64
     }
 }
 
-impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64Reader<R, N> {
+impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output=True>> ToBase64Reader<R, N> {
     fn buf_left_shift(&mut self, distance: usize) {
         debug_assert!(self.buf_length >= distance);
 
         self.buf_offset += distance;
 
-        if N::USIZE - self.buf_offset < 32 {
+        if self.buf_offset >= N::USIZE - 4 {
             unsafe {
                 copy(
                     self.buf.as_ptr().add(self.buf_offset),
@@ -195,8 +195,8 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64
     }
 }
 
-impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> Read
-    for ToBase64Reader<R, N>
+impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output=True>> Read
+for ToBase64Reader<R, N>
 {
     fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, io::Error> {
         let original_buf_length = buf.len();
