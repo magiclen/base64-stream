@@ -25,14 +25,7 @@ pub struct FromBase64Reader<
 impl<R: Read> FromBase64Reader<R> {
     #[inline]
     pub fn new(reader: R) -> FromBase64Reader<R> {
-        FromBase64Reader {
-            inner: reader,
-            buf: GenericArray::default(),
-            buf_length: 0,
-            buf_offset: 0,
-            temp: [0; 2],
-            temp_length: 0,
-        }
+        Self::new2(reader)
     }
 }
 

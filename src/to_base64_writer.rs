@@ -21,12 +21,7 @@ pub struct ToBase64Writer<
 impl<W: Write> ToBase64Writer<W> {
     #[inline]
     pub fn new(writer: W) -> ToBase64Writer<W> {
-        ToBase64Writer {
-            inner: writer,
-            buf: [0; 3],
-            buf_length: 0,
-            temp: GenericArray::default(),
-        }
+        Self::new2(writer)
     }
 }
 

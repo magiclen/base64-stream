@@ -21,14 +21,7 @@ pub struct ToBase64Reader<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Out
 impl<R: Read> ToBase64Reader<R> {
     #[inline]
     pub fn new(reader: R) -> ToBase64Reader<R> {
-        ToBase64Reader {
-            inner: reader,
-            buf: GenericArray::default(),
-            buf_length: 0,
-            buf_offset: 0,
-            temp: [0; 3],
-            temp_length: 0,
-        }
+        Self::new2(reader)
     }
 }
 
