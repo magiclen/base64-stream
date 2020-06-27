@@ -1,6 +1,6 @@
 [package]
 name = "base64-stream"
-version = "1.2.2"
+version = "1.2.3"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2018"
 repository = "https://github.com/magiclen/base64-stream"
@@ -10,6 +10,7 @@ categories = ["encoding"]
 description = "To encode/decode large data with the standard Base64 encoding."
 readme = "README.md"
 license = "MIT"
+include = ["src/**/*", "Cargo.toml"]
 
 [badges.travis-ci]
 repository = "magiclen/base64-stream"
