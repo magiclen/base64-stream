@@ -1,7 +1,7 @@
 Base64 Stream
 ====================
 
-[![Build Status](https://travis-ci.org/magiclen/base64-stream.svg?branch=master)](https://travis-ci.org/magiclen/base64-stream)
+[![CI](https://github.com/magiclen/base64-stream/actions/workflows/ci.yml/badge.svg)](https://github.com/magiclen/base64-stream/actions/workflows/ci.yml)
 
 To encode/decode large data with the standard Base64 encoding.
 
