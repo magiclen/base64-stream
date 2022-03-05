@@ -1,10 +1,10 @@
 use std::intrinsics::{copy, copy_nonoverlapping};
 use std::io::{self, ErrorKind, Read};
 
-use crate::generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
-use crate::generic_array::{ArrayLength, GenericArray};
+use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
+use generic_array::{ArrayLength, GenericArray};
 
-use crate::base64::DecodeError;
+use base64::DecodeError;
 
 /// Read base64 data and decode them to plain data.
 #[derive(Educe)]

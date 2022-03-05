@@ -10,8 +10,6 @@ To encode/decode large data with the standard Base64 encoding.
 #### ToBase64Reader
 
 ```rust
-extern crate base64_stream;
-
 use std::io::{Cursor, Read};
 
 use base64_stream::ToBase64Reader;
@@ -30,8 +28,6 @@ assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGlu
 #### ToBase64Writer
 
 ```rust
-extern crate base64_stream;
-
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
@@ -61,8 +57,6 @@ assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGlu
 #### FromBase64Reader
 
 ```rust
-extern crate base64_stream;
-
 use std::io::Cursor;
 
 use std::io::Read;
@@ -83,8 +77,6 @@ assert_eq!("Hi there, this is a simple sentence used for testing this crate. I h
 #### FromBase64Writer
 
 ```rust
-extern crate base64_stream;
-
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
@@ -116,8 +108,6 @@ The default buffer size is 4096 bytes. If you want to change that, you can use t
 For example, to change the buffer size to 256 bytes,
 
 ```rust
-extern crate base64_stream;
-
 use std::io::{Cursor, Read};
 
 use base64_stream::ToBase64Reader;

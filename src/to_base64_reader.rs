@@ -1,8 +1,8 @@
 use std::intrinsics::{copy, copy_nonoverlapping};
 use std::io::{self, ErrorKind, Read};
 
-use crate::generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
-use crate::generic_array::{ArrayLength, GenericArray};
+use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
+use generic_array::{ArrayLength, GenericArray};
 
 /// Read any data and encode them to base64 data.
 #[derive(Educe)]

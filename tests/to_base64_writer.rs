@@ -1,5 +1,3 @@
-extern crate base64_stream;
-
 use std::fs::{self, File};
 use std::io::Write;
 use std::path::Path;
