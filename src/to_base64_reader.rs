@@ -110,11 +110,6 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64
           Ok(val)  => val,
           Err(err) => panic!("Error: {}", err),
         };
-        // let encode_length = base64::encode_config_slice(
-        //     &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-        //     base64::STANDARD,
-        //     &mut b,
-        // );
 
         self.buf_left_shift(drain_length);
 
@@ -178,12 +173,6 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64
                     Err(err) => panic!("Error: {}", err),
                 };
       
-            // let encode_length = base64::encode_config_slice(
-            //     &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-            //     base64::STANDARD,
-            //     buf,
-            // );
-
             buf = &mut buf[encode_length..];
 
             self.buf_left_shift(drain_length);

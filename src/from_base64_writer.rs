@@ -52,11 +52,6 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBas
             self.buf[..self.buf_length].as_ref(),
             &mut self.temp,
         )
-        // let decode_length = base64::decode_config_slice(
-        //     &self.buf[..self.buf_length],
-        //     base64::STANDARD,
-        //     &mut self.temp,
-        // )
         .map_err(|err| io::Error::new(ErrorKind::Other, err))?;
 
         self.inner.write_all(&self.temp[..decode_length])?;
@@ -81,11 +76,6 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> Write
                     buf[..max_available_buf_length].as_ref(),
                     &mut self.temp,
                 )
-                // let decode_length = base64::decode_config_slice(
-                //     &buf[..max_available_buf_length],
-                //     base64::STANDARD,
-                //     &mut self.temp,
-                // )
                 .map_err(|err| io::Error::new(ErrorKind::Other, err))?;
 
                 buf = &buf[max_available_buf_length..];

@@ -53,11 +53,6 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase6
             self.buf[..self.buf_length].as_ref(),
             &mut self.temp,
         ).map_err(|err| super::to_io_error(err))?;
-        // let encode_length = base64::encode_config_slice(
-        //     &self.buf[..self.buf_length],
-        //     base64::STANDARD,
-        //     &mut self.temp,
-        // );
 
         self.inner.write_all(&self.temp[..encode_length])?;
 
@@ -82,11 +77,6 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> Write
                     buf[..max_available_buf_length].as_ref(),
                     &mut self.temp,
                 ).map_err(|err| super::to_io_error(err))?;
-                // let encode_length = base64::encode_config_slice(
-                //     &buf[..max_available_buf_length],
-                //     base64::STANDARD,
-                //     &mut self.temp,
-                // );
 
                 buf = &buf[max_available_buf_length..];
 

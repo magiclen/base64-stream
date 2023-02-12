@@ -108,11 +108,6 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
             self.buf[self.buf_offset..(self.buf_offset + drain_length)].as_ref(),
             &mut b,
         ).map_err(|err| super::to_decode_error(err))?;
-        // let decode_length = base64::decode_engine_slice(
-        //     &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-        //     base64::engine::general_purpose::STANDARD,
-        //     &mut b,
-        // )?;
 
         self.buf_left_shift(drain_length);
 
@@ -171,12 +166,6 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
                 &mut buf,
             ).map_err(|err| super::to_decode_error(err))?;
         
-            // let decode_length = base64::decode_config_slice(
-            //     &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-            //     base64::STANDARD,
-            //     buf,
-            // )?;
-
             buf = &mut buf[decode_length..];
 
             self.buf_left_shift(drain_length);
