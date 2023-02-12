@@ -4,6 +4,10 @@ use std::io::{self, Write};
 use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
 use generic_array::{ArrayLength, GenericArray};
 
+use base64::{self,
+    Engine,
+};
+
 /// Write base64 data and encode them to plain data.
 #[derive(Educe)]
 #[educe(Debug)]
@@ -16,23 +20,27 @@ pub struct ToBase64Writer<
     buf: [u8; 3],
     buf_length: usize,
     temp: GenericArray<u8, N>,
+    #[educe(Debug(ignore))]
+    engine: &'static base64::engine::general_purpose::GeneralPurpose,
+//    engine: &'static base64::engine::general_purpose::GeneralPurpose,
 }
 
 impl<W: Write> ToBase64Writer<W> {
     #[inline]
     pub fn new(writer: W) -> ToBase64Writer<W> {
-        Self::new2(writer)
+        Self::new2(writer, &base64::engine::general_purpose::STANDARD)
     }
 }
 
 impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64Writer<W, N> {
     #[inline]
-    pub fn new2(writer: W) -> ToBase64Writer<W, N> {
+    pub fn new2(writer: W, engine: &'static base64::engine::general_purpose::GeneralPurpose) -> ToBase64Writer<W, N> {
         ToBase64Writer {
             inner: writer,
             buf: [0; 3],
             buf_length: 0,
             temp: GenericArray::default(),
+            engine,
         }
     }
 }
@@ -41,11 +49,15 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase6
     fn drain_block(&mut self) -> Result<(), io::Error> {
         debug_assert!(self.buf_length > 0);
 
-        let encode_length = base64::encode_config_slice(
-            &self.buf[..self.buf_length],
-            base64::STANDARD,
+        let encode_length = self.engine.encode_slice(
+            self.buf[..self.buf_length].as_ref(),
             &mut self.temp,
-        );
+        ).map_err(|err| super::to_io_error(err))?;
+        // let encode_length = base64::encode_config_slice(
+        //     &self.buf[..self.buf_length],
+        //     base64::STANDARD,
+        //     &mut self.temp,
+        // );
 
         self.inner.write_all(&self.temp[..encode_length])?;
 
@@ -66,11 +78,15 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> Write
                 let max_available_buf_length =
                     (buf.len() - (buf.len() % 3)).min((N::USIZE >> 2) * 3); // (N::USIZE / 4) * 3
 
-                let encode_length = base64::encode_config_slice(
-                    &buf[..max_available_buf_length],
-                    base64::STANDARD,
+                let encode_length = self.engine.encode_slice(
+                    buf[..max_available_buf_length].as_ref(),
                     &mut self.temp,
-                );
+                ).map_err(|err| super::to_io_error(err))?;
+                // let encode_length = base64::encode_config_slice(
+                //     &buf[..max_available_buf_length],
+                //     base64::STANDARD,
+                //     &mut self.temp,
+                // );
 
                 buf = &buf[max_available_buf_length..];
 

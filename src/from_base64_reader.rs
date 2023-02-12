@@ -4,7 +4,10 @@ use std::io::{self, ErrorKind, Read};
 use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
 use generic_array::{ArrayLength, GenericArray};
 
-use base64::DecodeError;
+use base64::{self,
+    Engine,
+    DecodeError,
+};
 
 /// Read base64 data and decode them to plain data.
 #[derive(Educe)]
@@ -20,18 +23,20 @@ pub struct FromBase64Reader<
     buf_offset: usize,
     temp: [u8; 2],
     temp_length: usize,
+    #[educe(Debug(ignore))]
+    engine: &'static base64::engine::general_purpose::GeneralPurpose,
 }
 
 impl<R: Read> FromBase64Reader<R> {
     #[inline]
     pub fn new(reader: R) -> FromBase64Reader<R> {
-        Self::new2(reader)
+        Self::new2(reader, &base64::engine::general_purpose::STANDARD)
     }
 }
 
 impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase64Reader<R, N> {
     #[inline]
-    pub fn new2(reader: R) -> FromBase64Reader<R, N> {
+    pub fn new2(reader: R, engine: &'static base64::engine::general_purpose::GeneralPurpose) -> FromBase64Reader<R, N> {
         FromBase64Reader {
             inner: reader,
             buf: GenericArray::default(),
@@ -39,6 +44,7 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
             buf_offset: 0,
             temp: [0; 2],
             temp_length: 0,
+            engine,
         }
     }
 }
@@ -98,11 +104,15 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
 
         let mut b = [0; 3];
 
-        let decode_length = base64::decode_config_slice(
-            &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-            base64::STANDARD,
+        let decode_length = self.engine.decode_slice(
+            self.buf[self.buf_offset..(self.buf_offset + drain_length)].as_ref(),
             &mut b,
-        )?;
+        ).map_err(|err| super::to_decode_error(err))?;
+        // let decode_length = base64::decode_engine_slice(
+        //     &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
+        //     base64::engine::general_purpose::STANDARD,
+        //     &mut b,
+        // )?;
 
         self.buf_left_shift(drain_length);
 
@@ -156,11 +166,16 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
 
             let drain_length = max_available_self_buf_length.min(actual_max_read_size);
 
-            let decode_length = base64::decode_config_slice(
-                &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-                base64::STANDARD,
-                buf,
-            )?;
+            let decode_length = self.engine.decode_slice(
+                self.buf[self.buf_offset..(self.buf_offset + drain_length)].as_ref(),
+                &mut buf,
+            ).map_err(|err| super::to_decode_error(err))?;
+        
+            // let decode_length = base64::decode_config_slice(
+            //     &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
+            //     base64::STANDARD,
+            //     buf,
+            // )?;
 
             buf = &mut buf[decode_length..];
 

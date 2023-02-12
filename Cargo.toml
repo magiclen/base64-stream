@@ -13,7 +13,7 @@ license = "MIT"
 include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
-base64 = "0.13"
+base64 = "0.21"
 generic-array = "0.14"
 
 [dependencies.educe]
