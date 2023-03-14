@@ -4,6 +4,9 @@ use std::io::{self, ErrorKind, Write};
 use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
 use generic_array::{ArrayLength, GenericArray};
 
+use base64::engine::{general_purpose::STANDARD, GeneralPurpose};
+use base64::Engine;
+
 /// Write base64 data and decode them to plain data.
 #[derive(Educe)]
 #[educe(Debug)]
@@ -16,6 +19,8 @@ pub struct FromBase64Writer<
     buf: [u8; 4],
     buf_length: usize,
     temp: GenericArray<u8, N>,
+    #[educe(Debug(ignore))]
+    engine: &'static GeneralPurpose,
 }
 
 impl<W: Write> FromBase64Writer<W> {
@@ -33,6 +38,7 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBas
             buf: [0; 4],
             buf_length: 0,
             temp: GenericArray::default(),
+            engine: &STANDARD,
         }
     }
 }
@@ -41,12 +47,10 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBas
     fn drain_block(&mut self) -> Result<(), io::Error> {
         debug_assert!(self.buf_length > 0);
 
-        let decode_length = base64::decode_config_slice(
-            &self.buf[..self.buf_length],
-            base64::STANDARD,
-            &mut self.temp,
-        )
-        .map_err(|err| io::Error::new(ErrorKind::Other, err))?;
+        let decode_length = self
+            .engine
+            .decode_slice(&self.buf[..self.buf_length], &mut self.temp)
+            .map_err(|err| io::Error::new(ErrorKind::Other, err))?;
 
         self.inner.write_all(&self.temp[..decode_length])?;
 
@@ -66,12 +70,10 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> Write
             while buf.len() >= 4 {
                 let max_available_buf_length = (buf.len() & !0b11).min((N::USIZE / 3) << 2); // (N::USIZE / 3) * 4
 
-                let decode_length = base64::decode_config_slice(
-                    &buf[..max_available_buf_length],
-                    base64::STANDARD,
-                    &mut self.temp,
-                )
-                .map_err(|err| io::Error::new(ErrorKind::Other, err))?;
+                let decode_length = self
+                    .engine
+                    .decode_slice(&buf[..max_available_buf_length], &mut self.temp)
+                    .map_err(|err| io::Error::new(ErrorKind::Other, err))?;
 
                 buf = &buf[max_available_buf_length..];
 

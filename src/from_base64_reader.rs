@@ -4,7 +4,8 @@ use std::io::{self, ErrorKind, Read};
 use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
 use generic_array::{ArrayLength, GenericArray};
 
-use base64::DecodeError;
+use base64::engine::{general_purpose::STANDARD, GeneralPurpose};
+use base64::{DecodeSliceError, Engine};
 
 /// Read base64 data and decode them to plain data.
 #[derive(Educe)]
@@ -20,6 +21,8 @@ pub struct FromBase64Reader<
     buf_offset: usize,
     temp: [u8; 2],
     temp_length: usize,
+    #[educe(Debug(ignore))]
+    engine: &'static GeneralPurpose,
 }
 
 impl<R: Read> FromBase64Reader<R> {
@@ -39,6 +42,7 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
             buf_offset: 0,
             temp: [0; 2],
             temp_length: 0,
+            engine: &STANDARD,
         }
     }
 }
@@ -89,7 +93,7 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
     }
 
     #[inline]
-    fn drain_block<'a>(&mut self, mut buf: &'a mut [u8]) -> Result<&'a mut [u8], DecodeError> {
+    fn drain_block<'a>(&mut self, mut buf: &'a mut [u8]) -> Result<&'a mut [u8], DecodeSliceError> {
         debug_assert!(self.buf_length > 0);
         debug_assert!(self.temp_length == 0);
         debug_assert!(!buf.is_empty());
@@ -98,11 +102,9 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
 
         let mut b = [0; 3];
 
-        let decode_length = base64::decode_config_slice(
-            &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-            base64::STANDARD,
-            &mut b,
-        )?;
+        let decode_length = self
+            .engine
+            .decode_slice(&self.buf[self.buf_offset..(self.buf_offset + drain_length)], &mut b)?;
 
         self.buf_left_shift(drain_length);
 
@@ -135,7 +137,7 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
         Ok(buf)
     }
 
-    fn drain<'a>(&mut self, mut buf: &'a mut [u8]) -> Result<&'a mut [u8], DecodeError> {
+    fn drain<'a>(&mut self, mut buf: &'a mut [u8]) -> Result<&'a mut [u8], DecodeSliceError> {
         if buf.is_empty() {
             return Ok(buf);
         }
@@ -156,11 +158,9 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
 
             let drain_length = max_available_self_buf_length.min(actual_max_read_size);
 
-            let decode_length = base64::decode_config_slice(
-                &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-                base64::STANDARD,
-                buf,
-            )?;
+            let decode_length = self
+                .engine
+                .decode_slice(&self.buf[self.buf_offset..(self.buf_offset + drain_length)], buf)?;
 
             buf = &mut buf[decode_length..];
 
@@ -175,7 +175,7 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
     }
 
     #[inline]
-    fn drain_end<'a>(&mut self, mut buf: &'a mut [u8]) -> Result<&'a mut [u8], DecodeError> {
+    fn drain_end<'a>(&mut self, mut buf: &'a mut [u8]) -> Result<&'a mut [u8], DecodeSliceError> {
         if buf.is_empty() {
             return Ok(buf);
         }

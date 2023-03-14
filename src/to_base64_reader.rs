@@ -4,6 +4,9 @@ use std::io::{self, ErrorKind, Read};
 use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
 use generic_array::{ArrayLength, GenericArray};
 
+use base64::engine::{general_purpose::STANDARD, GeneralPurpose};
+use base64::Engine;
+
 /// Read any data and encode them to base64 data.
 #[derive(Educe)]
 #[educe(Debug)]
@@ -16,6 +19,8 @@ pub struct ToBase64Reader<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Out
     buf_offset: usize,
     temp: [u8; 3],
     temp_length: usize,
+    #[educe(Debug(ignore))]
+    engine: &'static GeneralPurpose,
 }
 
 impl<R: Read> ToBase64Reader<R> {
@@ -35,6 +40,7 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64
             buf_offset: 0,
             temp: [0; 3],
             temp_length: 0,
+            engine: &STANDARD,
         }
     }
 }
@@ -94,11 +100,10 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64
 
         let mut b = [0; 4];
 
-        let encode_length = base64::encode_config_slice(
-            &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-            base64::STANDARD,
-            &mut b,
-        );
+        let encode_length = self
+            .engine
+            .encode_slice(&self.buf[self.buf_offset..(self.buf_offset + drain_length)], &mut b)
+            .unwrap();
 
         self.buf_left_shift(drain_length);
 
@@ -152,11 +157,10 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64
 
             let drain_length = max_available_self_buf_length.min(actual_max_read_size);
 
-            let encode_length = base64::encode_config_slice(
-                &self.buf[self.buf_offset..(self.buf_offset + drain_length)],
-                base64::STANDARD,
-                buf,
-            );
+            let encode_length = self
+                .engine
+                .encode_slice(&self.buf[self.buf_offset..(self.buf_offset + drain_length)], buf)
+                .unwrap();
 
             buf = &mut buf[encode_length..];
 
