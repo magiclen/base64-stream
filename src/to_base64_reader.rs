@@ -1,11 +1,16 @@
-use std::intrinsics::{copy, copy_nonoverlapping};
-use std::io::{self, ErrorKind, Read};
+use std::{
+    intrinsics::{copy, copy_nonoverlapping},
+    io::{self, ErrorKind, Read},
+};
 
-use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
-use generic_array::{ArrayLength, GenericArray};
-
-use base64::engine::{general_purpose::STANDARD, GeneralPurpose};
-use base64::Engine;
+use base64::{
+    engine::{general_purpose::STANDARD, GeneralPurpose},
+    Engine,
+};
+use generic_array::{
+    typenum::{IsGreaterOrEqual, True, U4, U4096},
+    ArrayLength, GenericArray,
+};
 
 /// Read any data and encode them to base64 data.
 #[derive(Educe)]
@@ -13,14 +18,14 @@ use base64::Engine;
 pub struct ToBase64Reader<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True> = U4096>
 {
     #[educe(Debug(ignore))]
-    inner: R,
-    buf: GenericArray<u8, N>,
-    buf_length: usize,
-    buf_offset: usize,
-    temp: [u8; 3],
+    inner:       R,
+    buf:         GenericArray<u8, N>,
+    buf_length:  usize,
+    buf_offset:  usize,
+    temp:        [u8; 3],
     temp_length: usize,
     #[educe(Debug(ignore))]
-    engine: &'static GeneralPurpose,
+    engine:      &'static GeneralPurpose,
 }
 
 impl<R: Read> ToBase64Reader<R> {
@@ -34,13 +39,13 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase64
     #[inline]
     pub fn new2(reader: R) -> ToBase64Reader<R, N> {
         ToBase64Reader {
-            inner: reader,
-            buf: GenericArray::default(),
-            buf_length: 0,
-            buf_offset: 0,
-            temp: [0; 3],
+            inner:       reader,
+            buf:         GenericArray::default(),
+            buf_length:  0,
+            buf_offset:  0,
+            temp:        [0; 3],
             temp_length: 0,
-            engine: &STANDARD,
+            engine:      &STANDARD,
         }
     }
 }
@@ -204,9 +209,9 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> Read
                     buf = self.drain_end(buf);
 
                     return Ok(original_buf_length - buf.len());
-                }
+                },
                 Ok(c) => self.buf_length += c,
-                Err(ref e) if e.kind() == ErrorKind::Interrupted => {}
+                Err(ref e) if e.kind() == ErrorKind::Interrupted => {},
                 Err(e) => return Err(e),
             }
         }

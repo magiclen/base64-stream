@@ -12,7 +12,12 @@ fn decode_exact() {
 
     reader.read_exact(&mut test_data).unwrap();
 
-    assert_eq!("Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.".as_bytes(), test_data.as_ref());
+    assert_eq!(
+        "Hi there, this is a simple sentence used for testing this crate. I hope all cases are \
+         correct."
+            .as_bytes(),
+        test_data.as_ref()
+    );
 }
 
 #[test]
@@ -38,5 +43,9 @@ fn decode_to_string() {
 
     reader.read_to_string(&mut test_data).unwrap();
 
-    assert_eq!("Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.", test_data);
+    assert_eq!(
+        "Hi there, this is a simple sentence used for testing this crate. I hope all cases are \
+         correct.",
+        test_data
+    );
 }

@@ -1,6 +1,8 @@
-use std::fs::{self, File};
-use std::io::Write;
-use std::path::Path;
+use std::{
+    fs::{self, File},
+    io::Write,
+    path::Path,
+};
 
 use base64_stream::FromBase64Writer;
 
@@ -21,5 +23,9 @@ fn decode_write() {
 
     writer.flush().unwrap(); // the flush method is only used when the full base64 data has been written
 
-    assert_eq!("Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.", fs::read_to_string(file_path).unwrap());
+    assert_eq!(
+        "Hi there, this is a simple sentence used for testing this crate. I hope all cases are \
+         correct.",
+        fs::read_to_string(file_path).unwrap()
+    );
 }

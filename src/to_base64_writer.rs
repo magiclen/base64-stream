@@ -1,11 +1,16 @@
-use std::intrinsics::copy_nonoverlapping;
-use std::io::{self, Write};
+use std::{
+    intrinsics::copy_nonoverlapping,
+    io::{self, Write},
+};
 
-use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
-use generic_array::{ArrayLength, GenericArray};
-
-use base64::engine::{general_purpose::STANDARD, GeneralPurpose};
-use base64::Engine;
+use base64::{
+    engine::{general_purpose::STANDARD, GeneralPurpose},
+    Engine,
+};
+use generic_array::{
+    typenum::{IsGreaterOrEqual, True, U4, U4096},
+    ArrayLength, GenericArray,
+};
 
 /// Write base64 data and encode them to plain data.
 #[derive(Educe)]
@@ -15,12 +20,12 @@ pub struct ToBase64Writer<
     N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True> = U4096,
 > {
     #[educe(Debug(ignore))]
-    inner: W,
-    buf: [u8; 3],
+    inner:      W,
+    buf:        [u8; 3],
     buf_length: usize,
-    temp: GenericArray<u8, N>,
+    temp:       GenericArray<u8, N>,
     #[educe(Debug(ignore))]
-    engine: &'static GeneralPurpose,
+    engine:     &'static GeneralPurpose,
 }
 
 impl<W: Write> ToBase64Writer<W> {
@@ -34,11 +39,11 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> ToBase6
     #[inline]
     pub fn new2(writer: W) -> ToBase64Writer<W, N> {
         ToBase64Writer {
-            inner: writer,
-            buf: [0; 3],
+            inner:      writer,
+            buf:        [0; 3],
             buf_length: 0,
-            temp: GenericArray::default(),
-            engine: &STANDARD,
+            temp:       GenericArray::default(),
+            engine:     &STANDARD,
         }
     }
 }

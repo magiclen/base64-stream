@@ -1,11 +1,16 @@
-use std::intrinsics::copy_nonoverlapping;
-use std::io::{self, ErrorKind, Write};
+use std::{
+    intrinsics::copy_nonoverlapping,
+    io::{self, ErrorKind, Write},
+};
 
-use generic_array::typenum::{IsGreaterOrEqual, True, U4, U4096};
-use generic_array::{ArrayLength, GenericArray};
-
-use base64::engine::{general_purpose::STANDARD, GeneralPurpose};
-use base64::Engine;
+use base64::{
+    engine::{general_purpose::STANDARD, GeneralPurpose},
+    Engine,
+};
+use generic_array::{
+    typenum::{IsGreaterOrEqual, True, U4, U4096},
+    ArrayLength, GenericArray,
+};
 
 /// Write base64 data and decode them to plain data.
 #[derive(Educe)]
@@ -15,12 +20,12 @@ pub struct FromBase64Writer<
     N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True> = U4096,
 > {
     #[educe(Debug(ignore))]
-    inner: W,
-    buf: [u8; 4],
+    inner:      W,
+    buf:        [u8; 4],
     buf_length: usize,
-    temp: GenericArray<u8, N>,
+    temp:       GenericArray<u8, N>,
     #[educe(Debug(ignore))]
-    engine: &'static GeneralPurpose,
+    engine:     &'static GeneralPurpose,
 }
 
 impl<W: Write> FromBase64Writer<W> {
@@ -34,11 +39,11 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBas
     #[inline]
     pub fn new2(writer: W) -> FromBase64Writer<W, N> {
         FromBase64Writer {
-            inner: writer,
-            buf: [0; 4],
+            inner:      writer,
+            buf:        [0; 4],
             buf_length: 0,
-            temp: GenericArray::default(),
-            engine: &STANDARD,
+            temp:       GenericArray::default(),
+            engine:     &STANDARD,
         }
     }
 }
