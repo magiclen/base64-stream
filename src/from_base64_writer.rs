@@ -15,10 +15,8 @@ use generic_array::{
 /// Write base64 data and decode them to plain data.
 #[derive(Educe)]
 #[educe(Debug)]
-pub struct FromBase64Writer<
-    W: Write,
-    N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True> = U4096,
-> {
+pub struct FromBase64Writer<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True> = U4096>
+{
     #[educe(Debug(ignore))]
     inner:      W,
     buf:        [u8; 4],
@@ -35,7 +33,7 @@ impl<W: Write> FromBase64Writer<W> {
     }
 }
 
-impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase64Writer<W, N> {
+impl<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> FromBase64Writer<W, N> {
     #[inline]
     pub fn new2(writer: W) -> FromBase64Writer<W, N> {
         FromBase64Writer {
@@ -48,7 +46,7 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBas
     }
 }
 
-impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase64Writer<W, N> {
+impl<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> FromBase64Writer<W, N> {
     fn drain_block(&mut self) -> Result<(), io::Error> {
         debug_assert!(self.buf_length > 0);
 
@@ -65,7 +63,7 @@ impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBas
     }
 }
 
-impl<W: Write, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> Write
+impl<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> Write
     for FromBase64Writer<W, N>
 {
     fn write(&mut self, mut buf: &[u8]) -> Result<usize, io::Error> {

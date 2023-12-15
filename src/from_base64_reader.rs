@@ -15,10 +15,7 @@ use generic_array::{
 /// Read base64 data and decode them to plain data.
 #[derive(Educe)]
 #[educe(Debug)]
-pub struct FromBase64Reader<
-    R: Read,
-    N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True> = U4096,
-> {
+pub struct FromBase64Reader<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True> = U4096> {
     #[educe(Debug(ignore))]
     inner:       R,
     buf:         GenericArray<u8, N>,
@@ -37,7 +34,7 @@ impl<R: Read> FromBase64Reader<R> {
     }
 }
 
-impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase64Reader<R, N> {
+impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> FromBase64Reader<R, N> {
     #[inline]
     pub fn new2(reader: R) -> FromBase64Reader<R, N> {
         FromBase64Reader {
@@ -52,7 +49,7 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
     }
 }
 
-impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase64Reader<R, N> {
+impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> FromBase64Reader<R, N> {
     fn buf_left_shift(&mut self, distance: usize) {
         debug_assert!(self.buf_length >= distance);
 
@@ -197,7 +194,7 @@ impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> FromBase
     }
 }
 
-impl<R: Read, N: ArrayLength<u8> + IsGreaterOrEqual<U4, Output = True>> Read
+impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> Read
     for FromBase64Reader<R, N>
 {
     fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, io::Error> {
