@@ -1,6 +1,6 @@
 [package]
 name = "base64-stream"
-version = "3.0.1"
+version = "4.0.0"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2021"
 rust-version = "1.65"
@@ -13,10 +13,10 @@ license = "MIT"
 include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
-base64 = "0.21"
+base64 = "0.22"
 generic-array = "1"
 
 [dependencies.educe]
-version = ">=0.4.0"
+version = "0.5"
 features = ["Debug"]
 default-features = false
