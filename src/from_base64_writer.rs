@@ -1,6 +1,6 @@
 use std::{
-    intrinsics::copy_nonoverlapping,
     io::{self, ErrorKind, Write},
+    ptr::copy_nonoverlapping,
 };
 
 use base64::{

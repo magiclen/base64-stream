@@ -1,9 +1,9 @@
 [package]
 name = "base64-stream"
-version = "4.0.0"
+version = "4.0.1"
 authors = ["Magic Len <len@magiclen.org>"]
 edition = "2021"
-rust-version = "1.65"
+rust-version = "1.68"
 repository = "https://github.com/magiclen/base64-stream"
 homepage = "https://magiclen.org/base64-stream"
 keywords = ["base64", "stream", "file", "reader", "writer"]
