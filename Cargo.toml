@@ -1,9 +1,9 @@
 [package]
 name = "base64-stream"
-version = "4.0.1"
+version = "5.0.0"
 authors = ["Magic Len <len@magiclen.org>"]
-edition = "2021"
-rust-version = "1.68"
+edition = "2024"
+rust-version = "1.85"
 repository = "https://github.com/magiclen/base64-stream"
 homepage = "https://magiclen.org/base64-stream"
 keywords = ["base64", "stream", "file", "reader", "writer"]
@@ -14,9 +14,3 @@ include = ["src/**/*", "Cargo.toml", "README.md", "LICENSE"]
 
 [dependencies]
 base64 = "0.22"
-generic-array = "1"
-
-[dependencies.educe]
-version = "0.5"
-features = ["Debug"]
-default-features = false

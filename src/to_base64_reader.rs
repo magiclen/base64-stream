@@ -1,30 +1,33 @@
 use std::{
+    fmt,
     io::{self, ErrorKind, Read},
-    ptr::{copy, copy_nonoverlapping},
 };
 
 use base64::{
-    engine::{general_purpose::STANDARD, GeneralPurpose},
     Engine,
-};
-use generic_array::{
-    typenum::{IsGreaterOrEqual, True, U4, U4096},
-    ArrayLength, GenericArray,
+    engine::{GeneralPurpose, general_purpose::STANDARD},
 };
 
 /// Read any data and encode them to base64 data.
-#[derive(Educe)]
-#[educe(Debug)]
-pub struct ToBase64Reader<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True> = U4096> {
-    #[educe(Debug(ignore))]
+pub struct ToBase64Reader<R: Read, const N: usize = 4096> {
     inner:       R,
-    buf:         GenericArray<u8, N>,
+    buf:         [u8; N],
     buf_length:  usize,
     buf_offset:  usize,
     temp:        [u8; 3],
     temp_length: usize,
-    #[educe(Debug(ignore))]
     engine:      &'static GeneralPurpose,
+}
+
+impl<R: Read, const N: usize> fmt::Debug for ToBase64Reader<R, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ToBase64Reader")
+            .field("buf_length", &self.buf_length)
+            .field("buf_offset", &self.buf_offset)
+            .field("temp", &&self.temp[..self.temp_length])
+            .field("temp_length", &self.temp_length)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<R: Read> ToBase64Reader<R> {
@@ -34,12 +37,13 @@ impl<R: Read> ToBase64Reader<R> {
     }
 }
 
-impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Reader<R, N> {
+impl<R: Read, const N: usize> ToBase64Reader<R, N> {
     #[inline]
     pub fn new2(reader: R) -> ToBase64Reader<R, N> {
+        const { assert!(N >= 4, "buffer size N must be at least 4") };
         ToBase64Reader {
             inner:       reader,
-            buf:         GenericArray::default(),
+            buf:         [0u8; N],
             buf_length:  0,
             buf_offset:  0,
             temp:        [0; 3],
@@ -49,20 +53,14 @@ impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Read
     }
 }
 
-impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Reader<R, N> {
+impl<R: Read, const N: usize> ToBase64Reader<R, N> {
     fn buf_left_shift(&mut self, distance: usize) {
         debug_assert!(self.buf_length >= distance);
 
         self.buf_offset += distance;
 
-        if self.buf_offset >= N::USIZE - 4 {
-            unsafe {
-                copy(
-                    self.buf.as_ptr().add(self.buf_offset),
-                    self.buf.as_mut_ptr(),
-                    self.buf_length,
-                );
-            }
+        if self.buf_offset >= N - 4 {
+            self.buf.copy_within(self.buf_offset..self.buf_offset + self.buf_length, 0);
 
             self.buf_offset = 0;
         }
@@ -77,19 +75,10 @@ impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Read
 
         let drain_length = buf.len().min(self.temp_length);
 
-        unsafe {
-            copy_nonoverlapping(self.temp.as_ptr(), buf.as_mut_ptr(), drain_length);
-        }
+        buf[..drain_length].copy_from_slice(&self.temp[..drain_length]);
 
         self.temp_length -= drain_length;
-
-        unsafe {
-            copy(
-                self.temp.as_ptr().add(self.temp_length),
-                self.temp.as_mut_ptr(),
-                self.temp_length,
-            );
-        }
+        self.temp.copy_within(drain_length..drain_length + self.temp_length, 0);
 
         &mut buf[drain_length..]
     }
@@ -114,27 +103,16 @@ impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Read
         let buf_length = buf.len();
 
         if buf_length >= encode_length {
-            unsafe {
-                copy_nonoverlapping(b.as_ptr(), buf.as_mut_ptr(), encode_length);
-            }
+            buf[..encode_length].copy_from_slice(&b[..encode_length]);
 
             buf = &mut buf[encode_length..];
         } else {
-            unsafe {
-                copy_nonoverlapping(b.as_ptr(), buf.as_mut_ptr(), buf_length);
-            }
+            buf[..buf_length].copy_from_slice(&b[..buf_length]);
 
             buf = &mut buf[buf_length..];
 
             self.temp_length = encode_length - buf_length;
-
-            unsafe {
-                copy_nonoverlapping(
-                    b.as_ptr().add(buf_length),
-                    self.temp.as_mut_ptr(),
-                    self.temp_length,
-                );
-            }
+            self.temp[..self.temp_length].copy_from_slice(&b[buf_length..encode_length]);
         }
 
         buf
@@ -171,11 +149,7 @@ impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Read
             self.buf_left_shift(drain_length);
         }
 
-        if !buf.is_empty() && self.buf_length >= 3 {
-            self.drain_block(buf)
-        } else {
-            buf
-        }
+        if !buf.is_empty() && self.buf_length >= 3 { self.drain_block(buf) } else { buf }
     }
 
     #[inline]
@@ -188,15 +162,11 @@ impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Read
             buf = self.drain_temp(buf);
         }
 
-        if !buf.is_empty() && self.buf_length > 0 {
-            self.drain_block(buf)
-        } else {
-            buf
-        }
+        if !buf.is_empty() && self.buf_length > 0 { self.drain_block(buf) } else { buf }
     }
 }
 
-impl<R: Read, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> Read for ToBase64Reader<R, N> {
+impl<R: Read, const N: usize> Read for ToBase64Reader<R, N> {
     fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, io::Error> {
         let original_buf_length = buf.len();
 

@@ -111,11 +111,10 @@ For example, to change the buffer size to 256 bytes,
 use std::io::{Cursor, Read};
 
 use base64_stream::ToBase64Reader;
-use base64_stream::generic_array::typenum::U256;
 
 let test_data = b"Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.".to_vec();
 
-let mut reader: ToBase64Reader<_, U256> = ToBase64Reader::new2(Cursor::new(test_data));
+let mut reader: ToBase64Reader<_, 256> = ToBase64Reader::new2(Cursor::new(test_data));
 
 let mut base64 = String::new();
 
@@ -126,10 +125,6 @@ assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGlu
 */
 
 pub extern crate base64;
-pub extern crate generic_array;
-
-#[macro_use]
-extern crate educe;
 
 mod from_base64_reader;
 mod from_base64_writer;

@@ -1,28 +1,29 @@
 use std::{
+    fmt,
     io::{self, Write},
-    ptr::copy_nonoverlapping,
 };
 
 use base64::{
-    engine::{general_purpose::STANDARD, GeneralPurpose},
     Engine,
-};
-use generic_array::{
-    typenum::{IsGreaterOrEqual, True, U4, U4096},
-    ArrayLength, GenericArray,
+    engine::{GeneralPurpose, general_purpose::STANDARD},
 };
 
 /// Write base64 data and encode them to plain data.
-#[derive(Educe)]
-#[educe(Debug)]
-pub struct ToBase64Writer<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True> = U4096> {
-    #[educe(Debug(ignore))]
+pub struct ToBase64Writer<W: Write, const N: usize = 4096> {
     inner:      W,
     buf:        [u8; 3],
     buf_length: usize,
-    temp:       GenericArray<u8, N>,
-    #[educe(Debug(ignore))]
+    temp:       [u8; N],
     engine:     &'static GeneralPurpose,
+}
+
+impl<W: Write, const N: usize> fmt::Debug for ToBase64Writer<W, N> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("ToBase64Writer")
+            .field("buf", &&self.buf[..self.buf_length])
+            .field("buf_length", &self.buf_length)
+            .finish_non_exhaustive()
+    }
 }
 
 impl<W: Write> ToBase64Writer<W> {
@@ -32,20 +33,21 @@ impl<W: Write> ToBase64Writer<W> {
     }
 }
 
-impl<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Writer<W, N> {
+impl<W: Write, const N: usize> ToBase64Writer<W, N> {
     #[inline]
     pub fn new2(writer: W) -> ToBase64Writer<W, N> {
+        const { assert!(N >= 4, "buffer size N must be at least 4") };
         ToBase64Writer {
             inner:      writer,
             buf:        [0; 3],
             buf_length: 0,
-            temp:       GenericArray::default(),
+            temp:       [0u8; N],
             engine:     &STANDARD,
         }
     }
 }
 
-impl<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Writer<W, N> {
+impl<W: Write, const N: usize> ToBase64Writer<W, N> {
     fn drain_block(&mut self) -> Result<(), io::Error> {
         debug_assert!(self.buf_length > 0);
 
@@ -60,16 +62,13 @@ impl<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> ToBase64Wri
     }
 }
 
-impl<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> Write
-    for ToBase64Writer<W, N>
-{
+impl<W: Write, const N: usize> Write for ToBase64Writer<W, N> {
     fn write(&mut self, mut buf: &[u8]) -> Result<usize, io::Error> {
         let original_buf_length = buf.len();
 
         if self.buf_length == 0 {
             while buf.len() >= 3 {
-                let max_available_buf_length =
-                    (buf.len() - (buf.len() % 3)).min((N::USIZE >> 2) * 3); // (N::USIZE / 4) * 3
+                let max_available_buf_length = (buf.len() - (buf.len() % 3)).min((N >> 2) * 3); // (N / 4) * 3
 
                 let encode_length = self
                     .engine
@@ -84,9 +83,7 @@ impl<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> Write
             let buf_length = buf.len();
 
             if buf_length > 0 {
-                unsafe {
-                    copy_nonoverlapping(buf.as_ptr(), self.buf.as_mut_ptr(), buf_length);
-                }
+                self.buf[..buf_length].copy_from_slice(&buf[..buf_length]);
 
                 self.buf_length = buf_length;
             }
@@ -99,13 +96,8 @@ impl<W: Write, N: ArrayLength + IsGreaterOrEqual<U4, Output = True>> Write
 
             let drain_length = r.min(buf_length);
 
-            unsafe {
-                copy_nonoverlapping(
-                    buf.as_ptr(),
-                    self.buf.as_mut_ptr().add(self.buf_length),
-                    drain_length,
-                );
-            }
+            self.buf[self.buf_length..self.buf_length + drain_length]
+                .copy_from_slice(&buf[..drain_length]);
 
             buf = &buf[drain_length..];
 
