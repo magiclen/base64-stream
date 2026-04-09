@@ -62,6 +62,15 @@ impl<W: Write, const N: usize> FromBase64Writer<W, N> {
 
         Ok(())
     }
+
+    /// Returns the inner writer, consuming this wrapper.
+    ///
+    /// Call [`flush`](std::io::Write::flush) before this method to ensure all
+    /// buffered data is written.
+    #[inline]
+    pub fn into_inner(self) -> W {
+        self.inner
+    }
 }
 
 impl<W: Write, const N: usize> Write for FromBase64Writer<W, N> {

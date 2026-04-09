@@ -162,6 +162,12 @@ impl<R: Read, const N: usize> FromBase64Reader<R, N> {
 
         if !buf.is_empty() && self.buf_length > 0 { self.drain_block(buf) } else { Ok(buf) }
     }
+
+    /// Returns the inner reader, consuming this wrapper.
+    #[inline]
+    pub fn into_inner(self) -> R {
+        self.inner
+    }
 }
 
 impl<R: Read, const N: usize> Read for FromBase64Reader<R, N> {
