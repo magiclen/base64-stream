@@ -49,3 +49,91 @@ fn decode_to_string() {
         test_data
     );
 }
+
+#[test]
+fn decode_empty() {
+    let mut reader = FromBase64Reader::new(Cursor::new(b"" as &[u8]));
+
+    let mut out = Vec::new();
+
+    reader.read_to_end(&mut out).unwrap();
+
+    assert!(out.is_empty());
+}
+
+#[test]
+fn decode_one_byte() {
+    let mut reader = FromBase64Reader::new(Cursor::new(b"YQ==" as &[u8]));
+
+    let mut out = Vec::new();
+
+    reader.read_to_end(&mut out).unwrap();
+
+    assert_eq!(out, b"a");
+}
+
+#[test]
+fn decode_two_bytes() {
+    let mut reader = FromBase64Reader::new(Cursor::new(b"YWI=" as &[u8]));
+
+    let mut out = Vec::new();
+
+    reader.read_to_end(&mut out).unwrap();
+
+    assert_eq!(out, b"ab");
+}
+
+#[test]
+fn decode_three_bytes() {
+    let mut reader = FromBase64Reader::new(Cursor::new(b"YWJj" as &[u8]));
+
+    let mut out = Vec::new();
+
+    reader.read_to_end(&mut out).unwrap();
+
+    assert_eq!(out, b"abc");
+}
+
+#[test]
+fn decode_large() {
+    use base64_stream::base64::{Engine, engine::general_purpose::STANDARD};
+
+    let plain: Vec<u8> = (0u8..=255).cycle().take(5000).collect();
+    let encoded = STANDARD.encode(&plain);
+
+    let mut reader = FromBase64Reader::new(Cursor::new(encoded.into_bytes()));
+    let mut out = Vec::new();
+
+    reader.read_to_end(&mut out).unwrap();
+
+    assert_eq!(out, plain);
+}
+
+#[test]
+fn decode_invalid_base64() {
+    let mut reader = FromBase64Reader::new(Cursor::new(b"!!!!" as &[u8]));
+
+    let mut out = Vec::new();
+
+    assert!(reader.read_to_end(&mut out).is_err());
+}
+
+#[test]
+fn decode_into_inner() {
+    let cursor = Cursor::new(b"YQ==".to_vec());
+    let reader = FromBase64Reader::new(cursor);
+    let inner = reader.into_inner();
+
+    assert_eq!(inner.into_inner(), b"YQ==");
+}
+
+#[test]
+fn decode_small_buffer() {
+    let mut reader = FromBase64Reader::<_, 4>::new2(Cursor::new(b"YWJjZA==" as &[u8]));
+
+    let mut out = Vec::new();
+
+    reader.read_to_end(&mut out).unwrap();
+
+    assert_eq!(out, b"abcd");
+}

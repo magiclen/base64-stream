@@ -58,14 +58,13 @@ impl<R: Read, const N: usize> ToBase64Reader<R, N> {
         debug_assert!(self.buf_length >= distance);
 
         self.buf_offset += distance;
+        self.buf_length -= distance;
 
         if self.buf_offset >= N - 4 {
             self.buf.copy_within(self.buf_offset..self.buf_offset + self.buf_length, 0);
 
             self.buf_offset = 0;
         }
-
-        self.buf_length -= distance;
     }
 
     #[inline]
