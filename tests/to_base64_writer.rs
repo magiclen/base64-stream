@@ -45,7 +45,7 @@ fn encode_write() {
 
     writer.write_all(test_data).unwrap();
 
-    writer.flush().unwrap(); // the flush method is only used when the full plain data has been written
+    writer.finish().unwrap();
 
     assert_eq!(
         "SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==",
@@ -75,7 +75,7 @@ fn encode_flush_flushes_inner_writer() {
     let inner = writer.into_inner();
 
     assert_eq!(1, inner.flush_count);
-    assert_eq!(b"YWI=", inner.data.as_slice());
+    assert!(inner.data.is_empty());
 }
 
 #[test]
@@ -96,9 +96,8 @@ fn encode_one_byte_write() {
     let mut writer = ToBase64Writer::new(Cursor::new(Vec::<u8>::new()));
 
     writer.write_all(b"a").unwrap();
-    writer.flush().unwrap();
 
-    let out = writer.into_inner().into_inner();
+    let out = writer.finish().unwrap().into_inner();
 
     assert_eq!(out, b"YQ==");
 }
@@ -108,9 +107,8 @@ fn encode_two_bytes_write() {
     let mut writer = ToBase64Writer::new(Cursor::new(Vec::<u8>::new()));
 
     writer.write_all(b"ab").unwrap();
-    writer.flush().unwrap();
 
-    let out = writer.into_inner().into_inner();
+    let out = writer.finish().unwrap().into_inner();
 
     assert_eq!(out, b"YWI=");
 }
@@ -137,9 +135,8 @@ fn encode_large_write() {
     let mut writer = ToBase64Writer::new(Cursor::new(Vec::<u8>::new()));
 
     writer.write_all(&plain).unwrap();
-    writer.flush().unwrap();
 
-    let out = writer.into_inner().into_inner();
+    let out = writer.finish().unwrap().into_inner();
 
     assert_eq!(out, expected.as_bytes());
 }
@@ -149,9 +146,8 @@ fn encode_into_inner_write() {
     let mut writer = ToBase64Writer::new(Cursor::new(Vec::<u8>::new()));
 
     writer.write_all(b"abc").unwrap();
-    writer.flush().unwrap();
 
-    let out = writer.into_inner().into_inner();
+    let out = writer.finish().unwrap().into_inner();
 
     assert_eq!(out, b"YWJj");
 }
@@ -161,9 +157,36 @@ fn encode_small_buffer_write() {
     let mut writer = ToBase64Writer::<_, 4>::new2(Cursor::new(Vec::<u8>::new()));
 
     writer.write_all(b"abcd").unwrap();
-    writer.flush().unwrap();
 
-    let out = writer.into_inner().into_inner();
+    let out = writer.finish().unwrap().into_inner();
 
     assert_eq!(out, b"YWJjZA==");
+}
+
+#[test]
+fn encode_finish_flushes_inner_writer() {
+    let inner = FlushCountingWriter::default();
+    let mut writer = ToBase64Writer::new(inner);
+
+    writer.write_all(b"ab").unwrap();
+
+    let inner = writer.finish().unwrap();
+
+    assert_eq!(1, inner.flush_count);
+    assert_eq!(b"YWI=", inner.data.as_slice());
+}
+
+#[test]
+fn encode_finish_returns_inner_flush_error() {
+    let inner = FlushCountingWriter {
+        flush_error: Some(ErrorKind::BrokenPipe),
+        ..Default::default()
+    };
+    let mut writer = ToBase64Writer::new(inner);
+
+    writer.write_all(b"ab").unwrap();
+
+    let error = writer.finish().unwrap_err();
+
+    assert_eq!(ErrorKind::BrokenPipe, error.kind());
 }

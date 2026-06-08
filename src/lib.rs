@@ -47,7 +47,7 @@ let mut writer = ToBase64Writer::new(base64);
 
 writer.write_all(test_data).unwrap();
 
-writer.flush().unwrap(); // the flush method is only used when the full plain data has been written
+writer.finish().unwrap();
 
 assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==", fs::read_to_string(file_path).unwrap());
 ```
@@ -96,7 +96,7 @@ let mut writer = FromBase64Writer::new(test_data);
 
 writer.write_all(base64).unwrap();
 
-writer.flush().unwrap(); // the flush method is only used when the full base64 data has been written
+writer.finish().unwrap();
 
 assert_eq!("Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.", fs::read_to_string(file_path).unwrap());
 ```

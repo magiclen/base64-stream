@@ -68,10 +68,21 @@ impl<W: Write, const N: usize> FromBase64Writer<W, N> {
         Ok(())
     }
 
-    /// Returns the inner writer, consuming this wrapper.
+    /// Finishes decoding buffered data and returns the inner writer.
+    #[inline]
+    pub fn finish(mut self) -> Result<W, io::Error> {
+        if self.buf_length > 0 {
+            self.drain_block()?;
+        }
+
+        self.inner.flush()?;
+
+        Ok(self.inner)
+    }
+
+    /// Returns the inner writer, consuming this wrapper without finishing it.
     ///
-    /// Call [`flush`](std::io::Write::flush) before this method to ensure all
-    /// buffered data is written.
+    /// Call [`finish`](Self::finish) instead to decode the final buffered data and flush the inner writer.
     #[inline]
     pub fn into_inner(self) -> W {
         self.inner
@@ -133,10 +144,6 @@ impl<W: Write, const N: usize> Write for FromBase64Writer<W, N> {
 
     #[inline]
     fn flush(&mut self) -> Result<(), io::Error> {
-        if self.buf_length > 0 {
-            self.drain_block()?;
-        }
-
         self.inner.flush()
     }
 }
