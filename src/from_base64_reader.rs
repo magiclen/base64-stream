@@ -8,6 +8,11 @@ use base64::{
     engine::{GeneralPurpose, general_purpose::STANDARD},
 };
 
+#[inline]
+fn decode_error_to_io_error(error: DecodeSliceError) -> io::Error {
+    io::Error::new(ErrorKind::InvalidData, error)
+}
+
 /// Read base64 data and decode them to plain data.
 pub struct FromBase64Reader<R: Read, const N: usize = 4096> {
     inner:       R,
@@ -173,10 +178,28 @@ impl<R: Read, const N: usize> Read for FromBase64Reader<R, N> {
     fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, io::Error> {
         let original_buf_length = buf.len();
 
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
+        if self.temp_length > 0 {
+            buf = self.drain_temp(buf);
+
+            return Ok(original_buf_length - buf.len());
+        }
+
+        if self.buf_length >= 4 {
+            buf = self.drain(buf).map_err(decode_error_to_io_error)?;
+
+            return Ok(original_buf_length - buf.len());
+        }
+
         while self.buf_length < 4 {
+            debug_assert!(self.buf_offset + self.buf_length <= N);
+
             match self.inner.read(&mut self.buf[(self.buf_offset + self.buf_length)..]) {
                 Ok(0) => {
-                    buf = self.drain_end(buf).map_err(io::Error::other)?;
+                    buf = self.drain_end(buf).map_err(decode_error_to_io_error)?;
 
                     return Ok(original_buf_length - buf.len());
                 },
@@ -186,7 +209,7 @@ impl<R: Read, const N: usize> Read for FromBase64Reader<R, N> {
             }
         }
 
-        buf = self.drain(buf).map_err(io::Error::other)?;
+        buf = self.drain(buf).map_err(decode_error_to_io_error)?;
 
         Ok(original_buf_length - buf.len())
     }

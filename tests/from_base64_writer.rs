@@ -1,10 +1,34 @@
 use std::{
     fs::{self, File},
-    io::{Cursor, Write},
+    io::{self, Cursor, ErrorKind, Write},
     path::Path,
 };
 
 use base64_stream::FromBase64Writer;
+
+#[derive(Debug, Default)]
+struct FlushCountingWriter {
+    data:        Vec<u8>,
+    flush_count: usize,
+    flush_error: Option<ErrorKind>,
+}
+
+impl Write for FlushCountingWriter {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.data.extend_from_slice(buf);
+
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.flush_count += 1;
+
+        match self.flush_error {
+            Some(kind) => Err(io::Error::new(kind, "flush error")),
+            None => Ok(()),
+        }
+    }
+}
 
 const DATA_FOLDER: &str = "data";
 const DECODE_OUTPUT: &str = "decode_output.txt";
@@ -39,6 +63,33 @@ fn decode_empty_write() {
     let out = writer.into_inner().into_inner();
 
     assert!(out.is_empty());
+}
+
+#[test]
+fn decode_flush_flushes_inner_writer() {
+    let inner = FlushCountingWriter::default();
+    let mut writer = FromBase64Writer::new(inner);
+
+    writer.write_all(b"YWI=").unwrap();
+    writer.flush().unwrap();
+
+    let inner = writer.into_inner();
+
+    assert_eq!(1, inner.flush_count);
+    assert_eq!(b"ab", inner.data.as_slice());
+}
+
+#[test]
+fn decode_flush_returns_inner_flush_error() {
+    let inner = FlushCountingWriter {
+        flush_error: Some(ErrorKind::BrokenPipe),
+        ..Default::default()
+    };
+    let mut writer = FromBase64Writer::new(inner);
+
+    let error = writer.flush().unwrap_err();
+
+    assert_eq!(ErrorKind::BrokenPipe, error.kind());
 }
 
 #[test]
@@ -86,7 +137,9 @@ fn decode_large_write() {
 fn decode_invalid_write() {
     let mut writer = FromBase64Writer::new(Cursor::new(Vec::<u8>::new()));
 
-    assert!(writer.write_all(b"!!!!").is_err());
+    let error = writer.write_all(b"!!!!").unwrap_err();
+
+    assert_eq!(ErrorKind::InvalidData, error.kind());
 }
 
 #[test]

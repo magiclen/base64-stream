@@ -1,6 +1,54 @@
-use std::io::{Cursor, Read};
+use std::io::{Cursor, Error, ErrorKind, Read};
 
 use base64_stream::ToBase64Reader;
+
+#[derive(Debug)]
+struct CountedReader {
+    data:       Cursor<&'static [u8]>,
+    read_count: usize,
+}
+
+impl CountedReader {
+    fn new(data: &'static [u8]) -> Self {
+        CountedReader {
+            data: Cursor::new(data), read_count: 0
+        }
+    }
+}
+
+impl Read for CountedReader {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
+        self.read_count += 1;
+
+        self.data.read(buf)
+    }
+}
+
+#[derive(Debug)]
+struct FailAfterFirstRead {
+    data:       Cursor<&'static [u8]>,
+    read_count: usize,
+}
+
+impl FailAfterFirstRead {
+    fn new(data: &'static [u8]) -> Self {
+        FailAfterFirstRead {
+            data: Cursor::new(data), read_count: 0
+        }
+    }
+}
+
+impl Read for FailAfterFirstRead {
+    fn read(&mut self, buf: &mut [u8]) -> Result<usize, Error> {
+        if self.read_count > 0 {
+            return Err(Error::new(ErrorKind::WouldBlock, "unexpected read"));
+        }
+
+        self.read_count += 1;
+
+        self.data.read(buf)
+    }
+}
 
 #[test]
 fn encode_exact() {
@@ -38,7 +86,10 @@ fn encode_read_to_string() {
 
     reader.read_to_string(&mut base64_string).unwrap();
 
-    assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==", base64_string);
+    assert_eq!(
+        "SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==",
+        base64_string
+    );
 }
 
 #[test]
@@ -50,6 +101,36 @@ fn encode_empty() {
     reader.read_to_end(&mut out).unwrap();
 
     assert!(out.is_empty());
+}
+
+#[test]
+fn encode_zero_length_read_does_not_read_inner() {
+    let inner = CountedReader::new(b"abc");
+    let mut reader = ToBase64Reader::new(inner);
+
+    let mut out = [];
+
+    assert_eq!(0, reader.read(&mut out).unwrap());
+
+    let inner = reader.into_inner();
+
+    assert_eq!(0, inner.read_count);
+}
+
+#[test]
+fn encode_pending_temp_is_read_before_inner() {
+    let inner = FailAfterFirstRead::new(b"abc");
+    let mut reader = ToBase64Reader::new(inner);
+
+    let mut first = [0];
+
+    assert_eq!(1, reader.read(&mut first).unwrap());
+    assert_eq!(b"Y", first.as_ref());
+
+    let mut second = [0];
+
+    assert_eq!(1, reader.read(&mut second).unwrap());
+    assert_eq!(b"W", second.as_ref());
 }
 
 #[test]

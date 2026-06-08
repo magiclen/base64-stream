@@ -1,10 +1,34 @@
 use std::{
     fs::{self, File},
-    io::{Cursor, Write},
+    io::{self, Cursor, ErrorKind, Write},
     path::Path,
 };
 
 use base64_stream::ToBase64Writer;
+
+#[derive(Debug, Default)]
+struct FlushCountingWriter {
+    data:        Vec<u8>,
+    flush_count: usize,
+    flush_error: Option<ErrorKind>,
+}
+
+impl Write for FlushCountingWriter {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.data.extend_from_slice(buf);
+
+        Ok(buf.len())
+    }
+
+    fn flush(&mut self) -> Result<(), io::Error> {
+        self.flush_count += 1;
+
+        match self.flush_error {
+            Some(kind) => Err(io::Error::new(kind, "flush error")),
+            None => Ok(()),
+        }
+    }
+}
 
 const DATA_FOLDER: &str = "data";
 const ENCODE_OUTPUT: &str = "encode_output.txt";
@@ -23,7 +47,10 @@ fn encode_write() {
 
     writer.flush().unwrap(); // the flush method is only used when the full plain data has been written
 
-    assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==", fs::read_to_string(file_path).unwrap());
+    assert_eq!(
+        "SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==",
+        fs::read_to_string(file_path).unwrap()
+    );
 }
 
 #[test]
@@ -35,6 +62,33 @@ fn encode_empty_write() {
     let out = writer.into_inner().into_inner();
 
     assert!(out.is_empty());
+}
+
+#[test]
+fn encode_flush_flushes_inner_writer() {
+    let inner = FlushCountingWriter::default();
+    let mut writer = ToBase64Writer::new(inner);
+
+    writer.write_all(b"ab").unwrap();
+    writer.flush().unwrap();
+
+    let inner = writer.into_inner();
+
+    assert_eq!(1, inner.flush_count);
+    assert_eq!(b"YWI=", inner.data.as_slice());
+}
+
+#[test]
+fn encode_flush_returns_inner_flush_error() {
+    let inner = FlushCountingWriter {
+        flush_error: Some(ErrorKind::BrokenPipe),
+        ..Default::default()
+    };
+    let mut writer = ToBase64Writer::new(inner);
+
+    let error = writer.flush().unwrap_err();
+
+    assert_eq!(ErrorKind::BrokenPipe, error.kind());
 }
 
 #[test]

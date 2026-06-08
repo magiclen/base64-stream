@@ -175,7 +175,25 @@ impl<R: Read, const N: usize> Read for ToBase64Reader<R, N> {
     fn read(&mut self, mut buf: &mut [u8]) -> Result<usize, io::Error> {
         let original_buf_length = buf.len();
 
+        if buf.is_empty() {
+            return Ok(0);
+        }
+
+        if self.temp_length > 0 {
+            buf = self.drain_temp(buf);
+
+            return Ok(original_buf_length - buf.len());
+        }
+
+        if self.buf_length >= 3 {
+            buf = self.drain(buf);
+
+            return Ok(original_buf_length - buf.len());
+        }
+
         while self.buf_length < 3 {
+            debug_assert!(self.buf_offset + self.buf_length <= N);
+
             match self.inner.read(&mut self.buf[(self.buf_offset + self.buf_length)..]) {
                 Ok(0) => {
                     buf = self.drain_end(buf);

@@ -1,12 +1,17 @@
 use std::{
     fmt,
-    io::{self, Write},
+    io::{self, ErrorKind, Write},
 };
 
 use base64::{
-    Engine,
+    DecodeSliceError, Engine,
     engine::{GeneralPurpose, general_purpose::STANDARD},
 };
+
+#[inline]
+fn decode_error_to_io_error(error: DecodeSliceError) -> io::Error {
+    io::Error::new(ErrorKind::InvalidData, error)
+}
 
 /// Write base64 data and decode them to plain data.
 pub struct FromBase64Writer<W: Write, const N: usize = 4096> {
@@ -54,7 +59,7 @@ impl<W: Write, const N: usize> FromBase64Writer<W, N> {
         let decode_length = self
             .engine
             .decode_slice(&self.buf[..self.buf_length], &mut self.temp)
-            .map_err(io::Error::other)?;
+            .map_err(decode_error_to_io_error)?;
 
         self.inner.write_all(&self.temp[..decode_length])?;
 
@@ -84,7 +89,7 @@ impl<W: Write, const N: usize> Write for FromBase64Writer<W, N> {
                 let decode_length = self
                     .engine
                     .decode_slice(&buf[..max_available_buf_length], &mut self.temp)
-                    .map_err(io::Error::other)?;
+                    .map_err(decode_error_to_io_error)?;
 
                 buf = &buf[max_available_buf_length..];
 
@@ -132,7 +137,7 @@ impl<W: Write, const N: usize> Write for FromBase64Writer<W, N> {
             self.drain_block()?;
         }
 
-        Ok(())
+        self.inner.flush()
     }
 }
 

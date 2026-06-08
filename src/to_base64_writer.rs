@@ -129,7 +129,7 @@ impl<W: Write, const N: usize> Write for ToBase64Writer<W, N> {
             self.drain_block()?;
         }
 
-        Ok(())
+        self.inner.flush()
     }
 }
 
