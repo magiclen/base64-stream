@@ -147,7 +147,7 @@ fn decode_one_byte() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, b"a");
+    assert_eq!(b"a", out.as_slice());
 }
 
 #[test]
@@ -158,7 +158,7 @@ fn decode_two_bytes() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, b"ab");
+    assert_eq!(b"ab", out.as_slice());
 }
 
 #[test]
@@ -169,7 +169,7 @@ fn decode_three_bytes() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, b"abc");
+    assert_eq!(b"abc", out.as_slice());
 }
 
 #[test]
@@ -184,7 +184,7 @@ fn decode_large() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, plain);
+    assert_eq!(plain, out);
 }
 
 #[test]
@@ -204,7 +204,7 @@ fn decode_into_inner() {
     let reader = FromBase64Reader::new(cursor);
     let inner = reader.into_inner();
 
-    assert_eq!(inner.into_inner(), b"YQ==");
+    assert_eq!(b"YQ==", inner.into_inner().as_slice());
 }
 
 #[test]
@@ -215,5 +215,77 @@ fn decode_small_buffer() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, b"abcd");
+    assert_eq!(b"abcd", out.as_slice());
+}
+
+#[test]
+fn decode_returns_valid_prefix_before_error() {
+    let mut reader = FromBase64Reader::new(Cursor::new(b"YWJj!!!!"));
+    let mut out = [0; 4];
+
+    assert_eq!(3, reader.read(&mut out).unwrap());
+    assert_eq!(b"abc", &out[..3]);
+    assert_eq!(ErrorKind::InvalidData, reader.read(&mut out).unwrap_err().kind());
+}
+
+fn check_data_after_padding<const N: usize>() {
+    for encoded in [b"YQ==Yg==".as_slice(), b"YWI=Yw==", b"YWJjZA==YQ==", b"YQ==A"] {
+        for output_size in [1, 2, 3, 4, 8] {
+            let mut reader = FromBase64Reader::<_, N>::new2(Cursor::new(encoded));
+            let mut out = [0; 8];
+
+            let error = loop {
+                match reader.read(&mut out[..output_size]) {
+                    Ok(0) => panic!("accepted data after padding"),
+                    Ok(_) => {},
+                    Err(error) => break error,
+                }
+            };
+
+            assert_eq!(ErrorKind::InvalidData, error.kind());
+        }
+    }
+}
+
+#[test]
+fn decode_rejects_data_after_padding() {
+    check_data_after_padding::<4>();
+    check_data_after_padding::<5>();
+    check_data_after_padding::<7>();
+    check_data_after_padding::<4096>();
+}
+
+fn check_chunked_reads<const N: usize>() {
+    use base64_stream::base64::{Engine, engine::general_purpose::STANDARD};
+
+    for length in [0, 1, 2, 3, 4, 5000] {
+        let plain: Vec<u8> = (0u8..=255).cycle().take(length).collect();
+        let encoded = STANDARD.encode(&plain);
+
+        for output_size in [1, 2, 4, 7] {
+            let mut reader = FromBase64Reader::<_, N>::new2(Cursor::new(encoded.as_bytes()));
+            let mut chunk = [0; 7];
+            let mut out = Vec::new();
+
+            loop {
+                let length = reader.read(&mut chunk[..output_size]).unwrap();
+
+                if length == 0 {
+                    break;
+                }
+
+                out.extend_from_slice(&chunk[..length]);
+            }
+
+            assert_eq!(plain, out);
+        }
+    }
+}
+
+#[test]
+fn decode_chunked_reads() {
+    check_chunked_reads::<4>();
+    check_chunked_reads::<5>();
+    check_chunked_reads::<7>();
+    check_chunked_reads::<4096>();
 }

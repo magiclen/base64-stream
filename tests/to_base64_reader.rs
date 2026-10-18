@@ -141,7 +141,7 @@ fn encode_one_byte() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, b"YQ==");
+    assert_eq!(b"YQ==", out.as_slice());
 }
 
 #[test]
@@ -152,7 +152,7 @@ fn encode_two_bytes() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, b"YWI=");
+    assert_eq!(b"YWI=", out.as_slice());
 }
 
 #[test]
@@ -163,7 +163,7 @@ fn encode_three_bytes() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, b"YWJj");
+    assert_eq!(b"YWJj", out.as_slice());
 }
 
 #[test]
@@ -178,7 +178,7 @@ fn encode_large() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, expected.as_bytes());
+    assert_eq!(expected.as_bytes(), out);
 }
 
 #[test]
@@ -187,7 +187,7 @@ fn encode_into_inner() {
     let reader = ToBase64Reader::new(cursor);
     let inner = reader.into_inner();
 
-    assert_eq!(inner.into_inner(), b"abc");
+    assert_eq!(b"abc", inner.into_inner().as_slice());
 }
 
 #[test]
@@ -198,5 +198,5 @@ fn encode_small_buffer() {
 
     reader.read_to_end(&mut out).unwrap();
 
-    assert_eq!(out, b"YWJjZA==");
+    assert_eq!(b"YWJjZA==", out.as_slice());
 }

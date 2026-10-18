@@ -4,7 +4,7 @@ use std::{
 };
 
 use base64::{
-    DecodeSliceError, Engine,
+    DecodeError, DecodeSliceError, Engine,
     engine::{GeneralPurpose, general_purpose::STANDARD},
 };
 
@@ -15,13 +15,14 @@ fn decode_error_to_io_error(error: DecodeSliceError) -> io::Error {
 
 /// Read base64 data and decode them to plain data.
 pub struct FromBase64Reader<R: Read, const N: usize = 4096> {
-    inner:       R,
-    buf:         [u8; N],
-    buf_length:  usize,
-    buf_offset:  usize,
-    temp:        [u8; 2],
-    temp_length: usize,
-    engine:      &'static GeneralPurpose,
+    inner:        R,
+    buf:          [u8; N],
+    buf_length:   usize,
+    buf_offset:   usize,
+    temp:         [u8; 2],
+    temp_length:  usize,
+    padding_seen: bool,
+    engine:       &'static GeneralPurpose,
 }
 
 impl<R: Read, const N: usize> fmt::Debug for FromBase64Reader<R, N> {
@@ -31,6 +32,7 @@ impl<R: Read, const N: usize> fmt::Debug for FromBase64Reader<R, N> {
             .field("buf_offset", &self.buf_offset)
             .field("temp", &&self.temp[..self.temp_length])
             .field("temp_length", &self.temp_length)
+            .field("padding_seen", &self.padding_seen)
             .finish_non_exhaustive()
     }
 }
@@ -43,17 +45,19 @@ impl<R: Read> FromBase64Reader<R> {
 }
 
 impl<R: Read, const N: usize> FromBase64Reader<R, N> {
+    /// Creates a reader with a buffer of `N` bytes, where `N` must be at least 4.
     #[inline]
     pub fn new2(reader: R) -> FromBase64Reader<R, N> {
         const { assert!(N >= 4, "buffer size N must be at least 4") };
         FromBase64Reader {
-            inner:       reader,
-            buf:         [0u8; N],
-            buf_length:  0,
-            buf_offset:  0,
-            temp:        [0; 2],
-            temp_length: 0,
-            engine:      &STANDARD,
+            inner:        reader,
+            buf:          [0u8; N],
+            buf_length:   0,
+            buf_offset:   0,
+            temp:         [0; 2],
+            temp_length:  0,
+            padding_seen: false,
+            engine:       &STANDARD,
         }
     }
 }
@@ -101,6 +105,7 @@ impl<R: Read, const N: usize> FromBase64Reader<R, N> {
             .engine
             .decode_slice(&self.buf[self.buf_offset..(self.buf_offset + drain_length)], &mut b)?;
 
+        self.padding_seen = self.buf[self.buf_offset + drain_length - 1] == b'=';
         self.buf_left_shift(drain_length);
 
         let buf_length = buf.len();
@@ -146,9 +151,13 @@ impl<R: Read, const N: usize> FromBase64Reader<R, N> {
                 .engine
                 .decode_slice(&self.buf[self.buf_offset..(self.buf_offset + drain_length)], buf)?;
 
+            self.padding_seen = self.buf[self.buf_offset + drain_length - 1] == b'=';
             buf = &mut buf[decode_length..];
 
             self.buf_left_shift(drain_length);
+
+            // Return decoded bytes before checking another block that may fail.
+            return Ok(buf);
         }
 
         if !buf.is_empty() && self.buf_length >= 4 { self.drain_block(buf) } else { Ok(buf) }
@@ -168,6 +177,8 @@ impl<R: Read, const N: usize> FromBase64Reader<R, N> {
     }
 
     /// Returns the inner reader, consuming this wrapper.
+    ///
+    /// Any unread data in this wrapper's buffers is lost.
     #[inline]
     pub fn into_inner(self) -> R {
         self.inner
@@ -188,6 +199,10 @@ impl<R: Read, const N: usize> Read for FromBase64Reader<R, N> {
             return Ok(original_buf_length - buf.len());
         }
 
+        if self.padding_seen && self.buf_length > 0 {
+            return Err(decode_error_to_io_error(DecodeError::InvalidPadding.into()));
+        }
+
         if self.buf_length >= 4 {
             buf = self.drain(buf).map_err(decode_error_to_io_error)?;
 
@@ -203,7 +218,13 @@ impl<R: Read, const N: usize> Read for FromBase64Reader<R, N> {
 
                     return Ok(original_buf_length - buf.len());
                 },
-                Ok(c) => self.buf_length += c,
+                Ok(c) => {
+                    self.buf_length += c;
+
+                    if self.padding_seen {
+                        return Err(decode_error_to_io_error(DecodeError::InvalidPadding.into()));
+                    }
+                },
                 Err(ref e) if e.kind() == ErrorKind::Interrupted => {},
                 Err(e) => return Err(e),
             }

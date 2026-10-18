@@ -1,8 +1,4 @@
-use std::{
-    fs::{self, File},
-    io::{self, Cursor, ErrorKind, Write},
-    path::Path,
-};
+use std::io::{self, Cursor, ErrorKind, Write};
 
 use base64_stream::FromBase64Writer;
 
@@ -30,27 +26,46 @@ impl Write for FlushCountingWriter {
     }
 }
 
-const DATA_FOLDER: &str = "data";
-const DECODE_OUTPUT: &str = "decode_output.txt";
+#[derive(Debug, Default)]
+struct ShortWriter {
+    data:        Vec<u8>,
+    write_count: usize,
+    block_twice: bool,
+}
+
+impl Write for ShortWriter {
+    fn write(&mut self, buf: &[u8]) -> Result<usize, io::Error> {
+        self.write_count += 1;
+
+        if self.write_count == 2 || (self.block_twice && self.write_count == 3) {
+            return Err(ErrorKind::WouldBlock.into());
+        }
+
+        let length = buf.len().min(2);
+
+        self.data.extend_from_slice(&buf[..length]);
+
+        Ok(length)
+    }
+
+    fn flush(&mut self) -> Result<(), io::Error> {
+        Ok(())
+    }
+}
 
 #[test]
 fn decode_write() {
     let base64 = b"SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==".as_ref();
 
-    let file_path = Path::new("tests").join(DATA_FOLDER).join(DECODE_OUTPUT);
-
-    let test_data = File::create(file_path.as_path()).unwrap();
-
-    let mut writer = FromBase64Writer::new(test_data);
+    let mut writer = FromBase64Writer::new(Vec::new());
 
     writer.write_all(base64).unwrap();
 
-    writer.finish().unwrap();
+    let test_data = writer.finish().unwrap();
 
     assert_eq!(
-        "Hi there, this is a simple sentence used for testing this crate. I hope all cases are \
-         correct.",
-        fs::read_to_string(file_path).unwrap()
+        b"Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.",
+        test_data.as_slice()
     );
 }
 
@@ -100,7 +115,7 @@ fn decode_one_byte_write() {
 
     let out = writer.finish().unwrap().into_inner();
 
-    assert_eq!(out, b"a");
+    assert_eq!(b"a", out.as_slice());
 }
 
 #[test]
@@ -111,7 +126,7 @@ fn decode_two_bytes_write() {
 
     let out = writer.finish().unwrap().into_inner();
 
-    assert_eq!(out, b"ab");
+    assert_eq!(b"ab", out.as_slice());
 }
 
 #[test]
@@ -127,7 +142,7 @@ fn decode_large_write() {
 
     let out = writer.finish().unwrap().into_inner();
 
-    assert_eq!(out, plain);
+    assert_eq!(plain, out);
 }
 
 #[test]
@@ -147,7 +162,7 @@ fn decode_into_inner_write() {
 
     let out = writer.finish().unwrap().into_inner();
 
-    assert_eq!(out, b"a");
+    assert_eq!(b"a", out.as_slice());
 }
 
 #[test]
@@ -158,7 +173,7 @@ fn decode_small_buffer_write() {
 
     let out = writer.finish().unwrap().into_inner();
 
-    assert_eq!(out, b"abcd");
+    assert_eq!(b"abcd", out.as_slice());
 }
 
 #[test]
@@ -200,4 +215,111 @@ fn decode_finish_returns_inner_flush_error() {
     let error = writer.finish().unwrap_err();
 
     assert_eq!(ErrorKind::BrokenPipe, error.kind());
+}
+
+fn check_partial_writes<const N: usize>() {
+    for split in 0..4 {
+        let mut writer = FromBase64Writer::<_, N>::new2(ShortWriter::default());
+        let encoded = b"YWJjZGVmZ2hpag==";
+
+        writer.write_all(&encoded[..split]).unwrap();
+        writer.write_all(&encoded[split..]).unwrap();
+        writer.flush().unwrap();
+
+        let inner = writer.finish().unwrap();
+
+        assert_eq!(b"abcdefghij", inner.data.as_slice());
+    }
+}
+
+#[test]
+fn decode_partial_writes_can_resume() {
+    check_partial_writes::<4>();
+    check_partial_writes::<4096>();
+}
+
+fn check_repeated_would_block<const N: usize>() {
+    use base64_stream::base64::{Engine, engine::general_purpose::STANDARD};
+
+    let plain: Vec<u8> = (0u8..=255).cycle().take(5000).collect();
+    let encoded = STANDARD.encode(&plain);
+    let inner = ShortWriter {
+        block_twice: true,
+        ..Default::default()
+    };
+    let mut writer = FromBase64Writer::<_, N>::new2(inner);
+    let mut offset = 0;
+    let mut saw_would_block = false;
+
+    while offset < encoded.len() {
+        match writer.write(&encoded.as_bytes()[offset..]) {
+            Ok(0) => panic!("writer made no progress"),
+            Ok(length) => offset += length,
+            Err(error) if error.kind() == ErrorKind::WouldBlock => saw_would_block = true,
+            Err(error) => panic!("unexpected write error: {error}"),
+        }
+    }
+
+    assert!(saw_would_block);
+
+    let inner = writer.finish().unwrap();
+
+    assert_eq!(plain, inner.data);
+}
+
+#[test]
+fn decode_retries_repeated_would_block() {
+    check_repeated_would_block::<4>();
+    check_repeated_would_block::<4096>();
+}
+
+fn check_data_after_padding<const N: usize>() {
+    for encoded in [b"YQ==Yg==".as_slice(), b"YWI=Yw==", b"YWJjZA==YQ==", b"YQ==A"] {
+        for chunk_size in [1, 3, 4, 5, 8, 16] {
+            let mut writer = FromBase64Writer::<_, N>::new2(Vec::new());
+
+            let error = encoded
+                .chunks(chunk_size)
+                .try_for_each(|chunk| writer.write_all(chunk))
+                .and_then(|_| writer.finish().map(|_| ()))
+                .unwrap_err();
+
+            assert_eq!(ErrorKind::InvalidData, error.kind());
+        }
+    }
+}
+
+#[test]
+fn decode_rejects_data_after_padding() {
+    check_data_after_padding::<4>();
+    check_data_after_padding::<5>();
+    check_data_after_padding::<7>();
+    check_data_after_padding::<4096>();
+}
+
+fn check_chunked_writes<const N: usize>() {
+    use base64_stream::base64::{Engine, engine::general_purpose::STANDARD};
+
+    for length in [0, 1, 2, 3, 4, 5000] {
+        let plain: Vec<u8> = (0u8..=255).cycle().take(length).collect();
+        let encoded = STANDARD.encode(&plain);
+
+        for chunk_size in [1, 2, 5, 1024] {
+            let mut writer = FromBase64Writer::<_, N>::new2(Vec::new());
+
+            for chunk in encoded.as_bytes().chunks(chunk_size) {
+                writer.write_all(chunk).unwrap();
+            }
+
+            assert_eq!(plain, writer.finish().unwrap());
+        }
+    }
+}
+
+#[test]
+fn decode_chunked_writes() {
+    check_chunked_writes::<4>();
+    check_chunked_writes::<5>();
+    check_chunked_writes::<7>();
+    check_chunked_writes::<4096>();
 }

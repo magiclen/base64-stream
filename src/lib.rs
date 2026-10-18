@@ -3,6 +3,11 @@
 
 To encode/decode large data with the standard Base64 encoding.
 
+## Upgrading to 7.0.0
+
+The public `base64` re-export now uses version 0.23.1 instead of 0.22.
+Use `DecodeError::InvalidLastSymbol { offset, symbol, .. }` instead of `DecodeError::InvalidLastSymbol(offset, symbol)` in match patterns.
+
 ## Examples
 
 ### Encode
@@ -28,28 +33,19 @@ assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGlu
 #### ToBase64Writer
 
 ```rust
-use std::fs::{self, File};
 use std::io::Write;
-use std::path::Path;
 
 use base64_stream::ToBase64Writer;
 
-const DATA_FOLDER: &str = "data";
-const ENCODE_OUTPUT: &str = "encode_output.txt";
-
 let test_data = b"Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.".as_ref();
 
-let file_path = Path::new("tests").join(DATA_FOLDER).join(ENCODE_OUTPUT);
-
-let base64 = File::create(file_path.as_path()).unwrap();
-
-let mut writer = ToBase64Writer::new(base64);
+let mut writer = ToBase64Writer::new(Vec::new());
 
 writer.write_all(test_data).unwrap();
 
-writer.finish().unwrap();
+let base64 = writer.finish().unwrap();
 
-assert_eq!("SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==", fs::read_to_string(file_path).unwrap());
+assert_eq!(b"SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==", base64.as_slice());
 ```
 
 ### Decode
@@ -77,33 +73,25 @@ assert_eq!("Hi there, this is a simple sentence used for testing this crate. I h
 #### FromBase64Writer
 
 ```rust
-use std::fs::{self, File};
 use std::io::Write;
-use std::path::Path;
 
 use base64_stream::FromBase64Writer;
 
-const DATA_FOLDER: &str = "data";
-const DECODE_OUTPUT: &str = "decode_output.txt";
-
 let base64 = b"SGkgdGhlcmUsIHRoaXMgaXMgYSBzaW1wbGUgc2VudGVuY2UgdXNlZCBmb3IgdGVzdGluZyB0aGlzIGNyYXRlLiBJIGhvcGUgYWxsIGNhc2VzIGFyZSBjb3JyZWN0Lg==".as_ref();
 
-let file_path = Path::new("tests").join(DATA_FOLDER).join(DECODE_OUTPUT);
-
-let test_data = File::create(file_path.as_path()).unwrap();
-
-let mut writer = FromBase64Writer::new(test_data);
+let mut writer = FromBase64Writer::new(Vec::new());
 
 writer.write_all(base64).unwrap();
 
-writer.finish().unwrap();
+let test_data = writer.finish().unwrap();
 
-assert_eq!("Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.", fs::read_to_string(file_path).unwrap());
+assert_eq!(b"Hi there, this is a simple sentence used for testing this crate. I hope all cases are correct.", test_data.as_slice());
 ```
 
 ## Change the Buffer Size
 
 The default buffer size is 4096 bytes. If you want to change that, you can use the `new2` associated function and define a length explicitly to create an instance of the above structs.
+The buffer size must be at least 4 bytes.
 
 For example, to change the buffer size to 256 bytes,
 

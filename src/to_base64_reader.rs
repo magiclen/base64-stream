@@ -38,6 +38,7 @@ impl<R: Read> ToBase64Reader<R> {
 }
 
 impl<R: Read, const N: usize> ToBase64Reader<R, N> {
+    /// Creates a reader with a buffer of `N` bytes, where `N` must be at least 4.
     #[inline]
     pub fn new2(reader: R) -> ToBase64Reader<R, N> {
         const { assert!(N >= 4, "buffer size N must be at least 4") };
@@ -165,6 +166,8 @@ impl<R: Read, const N: usize> ToBase64Reader<R, N> {
     }
 
     /// Returns the inner reader, consuming this wrapper.
+    ///
+    /// Any unread data in this wrapper's buffers is lost.
     #[inline]
     pub fn into_inner(self) -> R {
         self.inner
